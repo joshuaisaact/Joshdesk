@@ -15,8 +15,16 @@ const createWeekSchedule = (startDate: Date): WeekSchedule => {
   }, {} as WeekSchedule)
 }
 
-export const createMonthSchedule = (): MonthSchedule => {
+export const createMonthSchedule = (
+  startFromNextMonday: boolean = false,
+): MonthSchedule => {
   const today = new Date()
+
+  if (startFromNextMonday) {
+    // Get next Monday regardless of current day
+    today.setDate(today.getDate() + (8 - today.getDay()))
+  }
+
   const isWeekend = today.getDay() === 0 || today.getDay() === 6
   const monday = new Date(today)
   monday.setDate(today.getDate() - today.getDay() + (isWeekend ? 8 : 1))

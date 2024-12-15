@@ -6,6 +6,7 @@ import { officeCommandHandler } from './commands/office'
 import { homeButtonHandler, officeButtonHandler } from './interactions/buttons'
 import { generateBlocks } from './blocks/home'
 import type { HomeView } from './types/slack'
+import { setupWeeklyReset } from './utils/schedule-reset'
 
 let officeSchedule = createMonthSchedule()
 let currentWeek = 0
@@ -77,7 +78,13 @@ app.event('app_home_opened', async (args) => {
 })
 
 const start = async () => {
-  await initializeSchedule() // Make sure this runs first
+  await initializeSchedule()
+
+  setupWeeklyReset((newSchedule) => {
+    officeSchedule = newSchedule
+    currentWeek = 0
+  }, Bun.env.SCHEDULE_TEST_MODE === 'true')
+
   await app.start(process.env.PORT || 3000)
   console.log('⚡️ Joshicely app is running!')
 }
