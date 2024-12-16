@@ -70,15 +70,23 @@ app.action<SelectWeekAction>('select_week', async ({ ack, body, client }) => {
 
 // Startup
 const start = async () => {
-  await initializeSchedule()
+  try {
+    await initializeSchedule()
 
-  setupWeeklyReset((newSchedule) => {
-    officeSchedule = newSchedule
-    currentWeek = 0
-  }, Bun.env.SCHEDULE_TEST_MODE === 'true')
+    setupWeeklyReset((newSchedule) => {
+      officeSchedule = newSchedule
+      currentWeek = 0
+    }, Bun.env.SCHEDULE_TEST_MODE === 'true')
 
-  await app.start(process.env.PORT || 3000)
-  console.log('⚡️ Joshicely app is running!')
+    await app.start(process.env.PORT || 3000)
+    console.log('⚡️ Joshicely app is running!')
+  } catch (error) {
+    console.error('Failed to start app:', error)
+    process.exit(1) // Exit with error code
+  }
 }
 
-start()
+start().catch(error => {
+  console.error('Unhandled error during startup:', error)
+  process.exit(1)
+})
