@@ -1,6 +1,7 @@
+// blocks/parts.ts
 import type { Block, KnownBlock } from '@slack/types'
 import type { DaySchedule } from '../types/schedule'
-import { getDateSuffix } from '../utils/dates'
+import { addWeeks, addDays, format, startOfWeek } from 'date-fns'
 import { WEEK_LABELS } from '../constants'
 
 export const createHeaderBlock = (isHomeView: boolean): KnownBlock => ({
@@ -8,8 +9,8 @@ export const createHeaderBlock = (isHomeView: boolean): KnownBlock => ({
   text: {
     type: 'plain_text',
     text: isHomeView
-      ? '📅 Office Schedule'
-      : "📅 Here's who's in the office this week:",
+      ? `📅 Office Schedule - ${format(new Date(), 'MMMM yyyy')}`
+      : "Here's who's in the office",
     emoji: true,
   },
 })
@@ -21,72 +22,6 @@ export const createWeekLabelBlock = (weekLabel: string): KnownBlock => ({
     text: `*${weekLabel}*`,
   },
 })
-
-export const createDayBlock = (
-  day: string,
-  schedule: DaySchedule,
-  isHomeView: boolean,
-  currentWeek: number,
-): (KnownBlock | Block)[] => {
-  const shortDay = isHomeView ? day.slice(0, 3) : day
-  const dayText = `*${shortDay}${isHomeView ? ` ${schedule.date}${getDateSuffix(schedule.date)}` : ''}*\n${
-    schedule.attendees.length ? schedule.attendees.join(' ') : 'No one yet!'
-  }`
-
-  if (!isHomeView) {
-    return [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: dayText,
-        },
-      },
-      {
-        type: 'divider',
-      },
-    ]
-  }
-
-  return [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: dayText,
-      },
-    },
-    {
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: '🏢 Office',
-            emoji: true,
-          },
-          style: 'primary',
-          action_id: `office_${day.toLowerCase()}_${currentWeek}`,
-          value: `${day.toLowerCase()}_${currentWeek}`,
-        },
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: '🏠 Home',
-            emoji: true,
-          },
-          action_id: `home_${day.toLowerCase()}_${currentWeek}`,
-          value: `${day.toLowerCase()}_${currentWeek}`,
-        },
-      ],
-    },
-    {
-      type: 'divider',
-    },
-  ]
-}
 
 export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
   type: 'actions',
@@ -118,3 +53,102 @@ export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
     },
   ],
 })
+
+export const createDayBlock = (
+  day: string,
+  schedule: DaySchedule,
+  isHomeView: boolean,
+  currentWeek: number,
+): (KnownBlock | Block)[] => {
+  const dayMap = {
+    Monday: 0,
+    Tuesday: 1,
+    Wednesday: 2,
+    Thursday: 3,
+    Friday: 4,
+  } as const
+
+  const targetDate = addDays(
+    addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), currentWeek),
+    dayMap[day as keyof typeof dayMap],
+  )
+
+  const formattedDate = format(
+    targetDate,
+    `${isHomeView ? 'E' : 'EEEE'} do MMMM`,
+  )
+
+  const dayText = `*${formattedDate}*\n\n${
+    schedule.attendees.length ? schedule.attendees.join(' ') : 'No one yet!'
+  }\n`
+
+  if (!isHomeView) {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: dayText,
+        },
+      },
+      {
+        type: 'divider',
+      },
+    ]
+  }
+
+  return [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ' ', // Empty space for padding
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: dayText,
+      },
+      accessory: {
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: '🏢 Office',
+          emoji: true,
+        },
+        style: 'primary',
+        action_id: `office_${day.toLowerCase()}_${currentWeek}`,
+        value: `${day.toLowerCase()}_${currentWeek}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ' ',
+      },
+      accessory: {
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: '🏠 Home',
+          emoji: true,
+        },
+        action_id: `home_${day.toLowerCase()}_${currentWeek}`,
+        value: `${day.toLowerCase()}_${currentWeek}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ' ', // Empty space for padding
+      },
+    },
+    {
+      type: 'divider',
+    },
+  ]
+}

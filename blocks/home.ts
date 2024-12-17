@@ -13,10 +13,15 @@ export const generateBlocks = (
   isHomeView: boolean,
   currentWeek: number = 0,
 ): (KnownBlock | Block)[] => {
-  const blocks: (KnownBlock | Block)[] = [createHeaderBlock(isHomeView)]
+  const blocks: (KnownBlock | Block)[] = [
+    // Header
+    createHeaderBlock(isHomeView),
+    { type: 'divider' },
+  ]
 
+  // Week selector (only in home view)
   if (isHomeView) {
-    blocks.push(createWeekLabelBlock(WEEK_LABELS[currentWeek]))
+    blocks.push(createWeekSelectorBlock(currentWeek), { type: 'divider' })
   }
 
   const weekSchedule = monthSchedule[currentWeek]
@@ -32,19 +37,22 @@ export const generateBlocks = (
     return blocks
   }
 
-  // Add schedule content
+  // Schedule content
   Object.entries(weekSchedule).forEach(([day, schedule]) => {
     blocks.push(...createDayBlock(day, schedule, isHomeView, currentWeek))
   })
 
-  // Add week selector at the bottom
+  // Help text at bottom (only in home view)
   if (isHomeView) {
-    blocks.push(
-      {
-        type: 'divider',
-      },
-      createWeekSelectorBlock(currentWeek),
-    )
+    blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: 'Use 🏢 Office or 🏠 Home to update your status • View current schedule with `/office`',
+        },
+      ],
+    })
   }
 
   return blocks
