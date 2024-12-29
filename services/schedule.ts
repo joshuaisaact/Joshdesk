@@ -1,15 +1,17 @@
 import type { MonthSchedule, WeekSchedule } from '../types/schedule'
 import { AttendanceStatus } from '../constants'
+import { addWeeks, addDays, startOfWeek, nextMonday, isWeekend } from 'date-fns'
 
 const createWeekSchedule = (startDate: Date): WeekSchedule => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
   return days.reduce((acc, day, index) => {
-    const date = new Date(startDate)
-    date.setDate(startDate.getDate() + index)
+    const date = addDays(startDate, index)
     acc[day] = {
       attendees: [],
       date: date.getDate(),
+      month: date.getMonth() + 1,
+      year: date.getFullYear(),
     }
     return acc
   }, {} as WeekSchedule)
@@ -19,20 +21,15 @@ export const createMonthSchedule = (
   startFromNextMonday: boolean = false,
 ): MonthSchedule => {
   const today = new Date()
+  let monday = startOfWeek(today, { weekStartsOn: 1 })
 
-  if (startFromNextMonday) {
-    // Get next Monday regardless of current day
-    today.setDate(today.getDate() + (8 - today.getDay()))
+  if (startFromNextMonday || isWeekend(today) || today.getDay() === 5) {
+    monday = nextMonday(today)
   }
-
-  const isWeekend = today.getDay() === 0 || today.getDay() === 6
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - today.getDay() + (isWeekend ? 8 : 1))
 
   return Array.from({ length: 4 }).reduce<MonthSchedule>(
     (acc, _, weekIndex) => {
-      const weekStart = new Date(monday)
-      weekStart.setDate(monday.getDate() + weekIndex * 7)
+      const weekStart = addWeeks(monday, weekIndex)
       acc[weekIndex] = createWeekSchedule(weekStart)
       return acc
     },
@@ -40,8 +37,6 @@ export const createMonthSchedule = (
   )
 }
 
-// Update attendance in a schedule
-// src/services/schedule.ts
 export const updateAttendance = (
   schedule: MonthSchedule,
   day: string,
@@ -79,7 +74,6 @@ export const updateAttendance = (
   return updatedSchedule
 }
 
-// Get attendance for a specific day
 export const getDayAttendance = (
   schedule: WeekSchedule,
   day: string,
@@ -87,7 +81,6 @@ export const getDayAttendance = (
   return schedule[day]?.attendees || []
 }
 
-// Check if someone is attending on a day
 export const isAttending = (
   schedule: WeekSchedule,
   day: string,

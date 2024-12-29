@@ -1,6 +1,8 @@
 export interface DaySchedule {
   attendees: string[]
   date: number
+  month: number
+  year: number
 }
 
 export interface WeekSchedule {

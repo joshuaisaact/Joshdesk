@@ -2,11 +2,9 @@ import type { Block, KnownBlock } from '@slack/types'
 import type { MonthSchedule } from '../types/schedule'
 import {
   createHeaderBlock,
-  createWeekLabelBlock,
   createDayBlock,
   createWeekSelectorBlock,
 } from './parts'
-import { WEEK_LABELS } from '../constants'
 
 export const generateBlocks = (
   monthSchedule: MonthSchedule,
@@ -14,12 +12,10 @@ export const generateBlocks = (
   currentWeek: number = 0,
 ): (KnownBlock | Block)[] => {
   const blocks: (KnownBlock | Block)[] = [
-    // Header
     createHeaderBlock(isHomeView),
     { type: 'divider' },
   ]
 
-  // Week selector (only in home view)
   if (isHomeView) {
     blocks.push(createWeekSelectorBlock(currentWeek), { type: 'divider' })
   }
@@ -37,12 +33,10 @@ export const generateBlocks = (
     return blocks
   }
 
-  // Schedule content
   Object.entries(weekSchedule).forEach(([day, schedule]) => {
     blocks.push(...createDayBlock(day, schedule, isHomeView, currentWeek))
   })
 
-  // Help text at bottom (only in home view)
   if (isHomeView) {
     blocks.push({
       type: 'context',

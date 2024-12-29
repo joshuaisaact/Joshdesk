@@ -1,6 +1,8 @@
 import type { MonthSchedule } from '../types/schedule'
 import { createMonthSchedule } from '../services/schedule'
 import { loadSchedule, saveSchedule } from '../services/storage'
+import { logger } from './logger'
+import { format } from 'date-fns/format'
 
 export const setupWeeklyReset = (
   updateSchedule: (schedule: MonthSchedule) => void,
@@ -11,7 +13,7 @@ export const setupWeeklyReset = (
 
   if (isTestMode) {
     nextFriday.setSeconds(nextFriday.getSeconds() + 30)
-    console.log('TEST MODE: Schedule will reset in 30 seconds')
+    logger.info('TEST MODE: Schedule will reset in 30 seconds')
   } else {
     nextFriday.setDate(now.getDate() + ((5 + 7 - now.getDay()) % 7))
     nextFriday.setHours(12, 0, 0, 0)
@@ -41,13 +43,25 @@ export const setupWeeklyReset = (
       updateSchedule(newSchedule)
       await saveSchedule(newSchedule)
 
-      console.log(`Schedule reset at ${new Date().toLocaleString()}`)
+      logger.info({
+        msg: 'Schedule reset',
+        timestamp: format(new Date(), 'EEEE do MMMM yyyy, h:mm a'),
+        nextReset: format(nextFriday, 'EEEE do MMMM yyyy, h:mm a'),
+        firstWeekDates: Object.entries(newSchedule[0]).map(
+          ([day, schedule]) =>
+            `${day}: ${format(new Date(schedule.year, schedule.month - 1, schedule.date), 'do MMM')}`,
+        ),
+      })
       setupWeeklyReset(updateSchedule, isTestMode)
     },
     isTestMode ? 30000 : msUntilReset,
   )
 
-  console.log(
-    `Next schedule reset scheduled for ${nextFriday.toLocaleString()}`,
-  )
+  logger.info({
+    msg: 'Next schedule reset scheduled',
+    scheduledFor: {
+      iso: nextFriday.toISOString(), // Keep ISO for machine parsing
+      formatted: format(nextFriday, 'EEEE do MMMM yyyy, h:mm a'), // e.g. "Friday 3rd January 2025, 12:00 PM"
+    },
+  })
 }

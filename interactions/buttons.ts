@@ -4,22 +4,22 @@ import type {
   BlockElementAction,
 } from '@slack/bolt'
 import type { HomeView } from '../types/slack'
-import type { MonthSchedule, WeekSchedule } from '../types/schedule'
+import type { MonthSchedule } from '../types/schedule'
 import { AttendanceStatus } from '../constants'
 import { generateBlocks } from '../blocks/home'
 import { updateAttendance } from '../services/schedule'
+import { logger } from '../utils/logger'
 
-// Helper function to parse day from action_id
 const parseDayFromAction = (
   action_id: string,
 ): { day: string; week: number } | null => {
-  const parts = action_id.split('_')
-  if (parts.length !== 3) return null
+  const [, dayPart, weekPart] = action_id.split('_')
+  if (!dayPart || !weekPart) return null
 
-  const day = parts[1].charAt(0).toUpperCase().concat(parts[1].slice(1))
-  const week = parseInt(parts[2], 10)
-
-  return { day, week }
+  return {
+    day: dayPart.charAt(0).toUpperCase() + dayPart.slice(1),
+    week: parseInt(weekPart, 10),
+  }
 }
 
 type ButtonHandlerArgs = AllMiddlewareArgs &
@@ -27,54 +27,42 @@ type ButtonHandlerArgs = AllMiddlewareArgs &
     action: BlockElementAction
   }
 
-export const officeButtonHandler = async (
+const handleAttendanceButton = async (
   { action, ack, body, client }: ButtonHandlerArgs,
   schedule: MonthSchedule,
+  status: AttendanceStatus,
 ): Promise<MonthSchedule | undefined> => {
   await ack()
   const parsed = parseDayFromAction(action.action_id)
-  if (!parsed) return
-
-  // Check if week and day exist in schedule
-  if (!(parsed.week in schedule) || !(parsed.day in schedule[parsed.week]))
+  if (!parsed) {
+    logger.warn({ actionId: action.action_id, msg: 'Failed to parse action' })
     return
+  }
 
-  const updatedSchedule = updateAttendance(
-    schedule,
-    parsed.day, // Use parsed.day instead of day
-    parsed.week, // Use parsed.week instead of currentWeek
-    body.user.id,
-    AttendanceStatus.Office,
-  )
+  if (!(parsed.week in schedule) || !(parsed.day in schedule[parsed.week])) {
+    logger.warn({
+      week: parsed.week,
+      day: parsed.day,
+      msg: 'Invalid week or day',
+    })
+    return
+  }
 
-  await client.views.publish({
-    user_id: body.user.id,
-    view: {
-      type: 'home',
-      blocks: generateBlocks(updatedSchedule, true, parsed.week), // Use parsed.week here too
-    } as HomeView,
+  logger.info({
+    msg: 'Updating attendance',
+    user: body.user.id,
+    day: parsed.day,
+    week: parsed.week,
+    status,
+    date: `${schedule[parsed.week][parsed.day].date}/${schedule[parsed.week][parsed.day].month}`,
   })
-
-  return updatedSchedule
-}
-
-export const homeButtonHandler = async (
-  { action, ack, body, client }: ButtonHandlerArgs,
-  schedule: MonthSchedule, // Changed from WeekSchedule to MonthSchedule
-): Promise<MonthSchedule | undefined> => {
-  await ack()
-  const parsed = parseDayFromAction(action.action_id)
-  if (!parsed) return
-
-  if (!(parsed.week in schedule) || !(parsed.day in schedule[parsed.week]))
-    return
 
   const updatedSchedule = updateAttendance(
     schedule,
     parsed.day,
-    parsed.week, // Need to pass current week
+    parsed.week,
     body.user.id,
-    AttendanceStatus.Home,
+    status,
   )
 
   await client.views.publish({
@@ -87,3 +75,13 @@ export const homeButtonHandler = async (
 
   return updatedSchedule
 }
+
+export const officeButtonHandler = (
+  args: ButtonHandlerArgs,
+  schedule: MonthSchedule,
+) => handleAttendanceButton(args, schedule, AttendanceStatus.Office)
+
+export const homeButtonHandler = (
+  args: ButtonHandlerArgs,
+  schedule: MonthSchedule,
+) => handleAttendanceButton(args, schedule, AttendanceStatus.Home)

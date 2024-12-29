@@ -1,7 +1,6 @@
-// blocks/parts.ts
 import type { Block, KnownBlock } from '@slack/types'
 import type { DaySchedule } from '../types/schedule'
-import { addWeeks, addDays, format, startOfWeek } from 'date-fns'
+import { format } from 'date-fns'
 import { WEEK_LABELS } from '../constants'
 
 export const createHeaderBlock = (isHomeView: boolean): KnownBlock => ({
@@ -68,10 +67,17 @@ export const createDayBlock = (
     Friday: 4,
   } as const
 
-  const targetDate = addDays(
-    addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), currentWeek),
-    dayMap[day as keyof typeof dayMap],
-  )
+  const targetDate = new Date()
+
+  targetDate.setDate(schedule.date)
+
+  if (schedule.month) {
+    targetDate.setMonth(schedule.month - 1)
+  }
+
+  if (schedule.year) {
+    targetDate.setFullYear(schedule.year)
+  }
 
   const formattedDate = format(
     targetDate,
@@ -102,7 +108,7 @@ export const createDayBlock = (
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: ' ', // Empty space for padding
+        text: ' ',
       },
     },
     {
@@ -144,7 +150,7 @@ export const createDayBlock = (
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: ' ', // Empty space for padding
+        text: ' ',
       },
     },
     {
