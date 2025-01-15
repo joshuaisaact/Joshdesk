@@ -6,6 +6,7 @@ import { tryCatch } from './utils/error-handlers'
 import { setupEventHandlers } from './handlers'
 import { initializeDB } from './services/init'
 import { startServer } from './services/server'
+import { installationStore } from './services/installation'
 
 // State
 const state = {
@@ -14,10 +15,12 @@ const state = {
 
 const initApp = async () => {
   const app = new App({
-    token: Bun.env.SLACK_BOT_TOKEN,
     signingSecret: Bun.env.SLACK_SIGNING_SECRET,
-    socketMode: true,
-    appToken: Bun.env.SLACK_APP_TOKEN,
+    clientId: Bun.env.SLACK_CLIENT_ID,
+    clientSecret: Bun.env.SLACK_CLIENT_SECRET,
+    stateSecret: Bun.env.SLACK_STATE_SECRET,
+    scopes: ['channels:history', 'chat:write', 'commands'],
+    installationStore,
   })
 
   const storedSchedule = await initializeDB()
