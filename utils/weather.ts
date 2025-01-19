@@ -1,4 +1,5 @@
 import { logger } from './logger'
+import { format } from 'date-fns/format'
 
 export interface WeatherData {
   temperature: number
@@ -167,5 +168,46 @@ export function getWeatherEmoji(weatherCode: number, isDay: boolean): string {
       return '⛈️'
     default:
       return '🌡️'
+  }
+}
+
+export function getFormattedWeather(
+  weather: WeatherData | null,
+  scheduleDate: Date,
+  isCurrentDay: boolean,
+): {
+  emoji: string
+  temp: string
+  description: string
+  feelsLike?: number
+  humidity?: number
+  uvIndex?: number
+} | null {
+  if (!weather) return null
+
+  const dayIndex = weather.dailyForecast.findIndex(
+    (forecast) =>
+      format(new Date(forecast.time), 'yyyy-MM-dd') ===
+      format(scheduleDate, 'yyyy-MM-dd'),
+  )
+
+  if (dayIndex === -1) return null
+
+  if (isCurrentDay) {
+    return {
+      emoji: getWeatherEmoji(weather.weatherCode, weather.isDay),
+      temp: `${weather.temperature}°C`,
+      description: weather.description,
+      feelsLike: weather.feelsLike,
+      humidity: weather.humidity,
+      uvIndex: weather.uvIndex,
+    }
+  }
+
+  const forecast = weather.dailyForecast[dayIndex]
+  return {
+    emoji: getWeatherEmoji(forecast.weatherCode, true),
+    temp: `${forecast.temperatureMax}°/${forecast.temperatureMin}°C`,
+    description: WEATHER_CODES[forecast.weatherCode],
   }
 }

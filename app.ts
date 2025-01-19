@@ -1,14 +1,22 @@
 import { logger } from './utils/logger'
 import { App } from '@slack/bolt'
-import { createMonthSchedule } from './services/schedule'
-import { resetWorkspaceSchedules, setupWeeklyReset, shouldResetSchedule } from './utils/schedule-reset'
+import {
+  resetWorkspaceSchedules,
+  setupWeeklyReset,
+  shouldResetSchedule,
+} from './utils/schedule-reset'
 import { tryCatch } from './utils/error-handlers'
 import { setupEventHandlers } from './handlers'
-import { initializeDB } from './services/init'
 import { startServer } from './services/server'
 import { installationStore } from './services/installation'
-import { deleteWorkspaceData, getAllWorkspaceIds, loadSchedule, saveSchedule } from './services/storage'
+import {
+  deleteWorkspaceData,
+  getAllWorkspaceIds,
+  loadSchedule,
+  saveSchedule,
+} from './services/storage'
 import type { MonthSchedule } from './types/schedule'
+import { createMonthSchedule } from './services/schedule.ts'
 
 // State
 const state = new Map<string, MonthSchedule>()
@@ -19,15 +27,26 @@ const initApp = async () => {
     clientId: Bun.env.SLACK_CLIENT_ID,
     clientSecret: Bun.env.SLACK_CLIENT_SECRET,
     stateSecret: Bun.env.SLACK_STATE_SECRET,
-    scopes: ['channels:history', 'chat:write', 'commands'],
+    scopes: ['chat:write', 'commands', 'users:read', 'users.profile:write'],
     installationStore,
     socketMode: true,
     appToken: Bun.env.SLACK_APP_TOKEN,
     redirectUri:
-      'https://bf89-149-22-196-72.ngrok-free.app/slack/oauth/callback',
+      'https://9884-149-22-196-72.ngrok-free.app/slack/oauth/callback',
     installerOptions: {
       redirectUriPath: '/slack/oauth/callback',
+      directInstall: true,
+      stateVerification: false, // Disable state verification
     },
+  })
+
+  // Add error handler
+  app.error(async (error) => {
+    console.error('Detailed app error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    })
   })
 
   // Initialize the event handlers with workspace awareness
@@ -38,6 +57,7 @@ const initApp = async () => {
         logger.error('No team ID found in context during installation')
         return
       }
+
       const schedule = createMonthSchedule(shouldResetSchedule())
       await saveSchedule(teamId, schedule)
       state.set(teamId, schedule)

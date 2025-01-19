@@ -2,6 +2,8 @@ import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from '@slack/bolt'
 import type { HomeView } from '../types/slack'
 import { generateBlocks } from '../blocks/home'
 import type { MonthSchedule } from '../types/schedule'
+import { checkIfAdmin } from '../utils/slack.ts'
+import { installationStore } from '../services/installation'
 
 export const appHomeOpenedHandler = async (
   {
@@ -13,7 +15,22 @@ export const appHomeOpenedHandler = async (
   currentWeek: number = 0,
 ) => {
   try {
+    // Get installation token for this team
+    const installation = await installationStore.fetchInstallation({
+      teamId: context.teamId!,
+      isEnterpriseInstall: false,
+      enterpriseId: undefined,
+    })
+
+    const token = installation.bot?.token
+    if (!token) {
+      throw new Error('No bot token found')
+    }
+
+    const isAdmin = await checkIfAdmin(client, event.user, context.teamId!)
+
     await client.views.publish({
+      token, // Add the token here
       user_id: event.user,
       view: {
         type: 'home',
@@ -23,6 +40,7 @@ export const appHomeOpenedHandler = async (
           currentWeek,
           event.user,
           context.teamId!,
+          isAdmin,
         ),
       } as HomeView,
     })
@@ -30,4 +48,3 @@ export const appHomeOpenedHandler = async (
     console.error(error)
   }
 }
-

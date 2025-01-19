@@ -22,7 +22,7 @@ import {
 } from '../services/geocoding'
 import { generateSettingsBlocks } from '../blocks/settings.ts'
 import { updateUserSlackStatus } from '../services/status-update.ts'
-
+import { checkIfAdmin } from '../utils/slack.ts'
 
 const getWorkspaceSchedule = async (
   teamId: string | undefined,
@@ -49,7 +49,6 @@ export const setupEventHandlers = (
 ) => {
   app.event('app_home_opened', async ({ event, context, ...rest }) => {
     try {
-      logger.info('App home opened:', app, state)
       const schedule = await getWorkspaceSchedule(context.teamId, state)
       if (!schedule) return
       await appHomeOpenedHandler({ event, context, ...rest }, schedule, 0)
@@ -66,71 +65,73 @@ export const setupEventHandlers = (
         msg: 'Retrieved workspace settings',
         settings,
         categoriesCount: settings.categories?.length,
-        teamId: context.teamId
+        teamId: context.teamId,
       })
 
       const view = createSettingsModal(settings)
       logger.info({
         msg: 'Generated modal view',
         blockCount: view.blocks.length,
-        categoriesBlocksCount: settings.categories?.length * 2 // each category creates 2 blocks
+        categoriesBlocksCount: settings.categories?.length * 2, // each category creates 2 blocks
       })
 
       await client.views.open({
         trigger_id: (body as any).trigger_id,
-        view
+        view,
       })
     } catch (error) {
       logger.error({ msg: 'Error opening settings modal', error })
     }
   })
 
-  app.action<BlockAction>(/^toggle_category_.*/, async ({ ack, body, client, context, action }) => {
-    if (!('selected_option' in action)) return
-    await ack()
-    try {
-      const categoryId = action.action_id.replace('toggle_category_', '')
-      const isEnabled = action.selected_option.value === 'enabled'
+  app.action<BlockAction>(
+    /^toggle_category_.*/,
+    async ({ ack, body, client, context, action }) => {
+      if (!('selected_option' in action)) return
+      await ack()
+      try {
+        const categoryId = action.action_id.replace('toggle_category_', '')
+        const isEnabled = action.selected_option.value === 'enabled'
 
-      // Get current settings
-      const settings = await getWorkspaceSettings(context.teamId!)
+        // Get current settings
+        const settings = await getWorkspaceSettings(context.teamId!)
 
-      // Update the category
-      const updatedCategories = settings.categories.map(cat =>
-        cat.id === categoryId
-          ? { ...cat, isEnabled }
-          : cat
-      )
+        // Update the category
+        const updatedCategories = settings.categories.map((cat) =>
+          cat.id === categoryId ? { ...cat, isEnabled } : cat,
+        )
 
-      // Save the updated settings
-      await saveWorkspaceSettings(context.teamId!, {
-        ...settings,
-        categories: updatedCategories
-      })
+        // Save the updated settings
+        await saveWorkspaceSettings(context.teamId!, {
+          ...settings,
+          categories: updatedCategories,
+        })
 
-      // No need to update the modal view as radio buttons update automatically
+        // No need to update the modal view as radio buttons update automatically
 
-      logger.info({
-        msg: 'Category visibility updated',
-        categoryId,
-        isEnabled,
-        teamId: context.teamId
-      })
-    } catch (error) {
-      logger.error({
-        msg: 'Error updating category visibility',
-        error,
-        actionId: action.action_id
-      })
-    }
-  })
+        logger.info({
+          msg: 'Category visibility updated',
+          categoryId,
+          isEnabled,
+          teamId: context.teamId,
+        })
+      } catch (error) {
+        logger.error({
+          msg: 'Error updating category visibility',
+          error,
+          actionId: action.action_id,
+        })
+      }
+    },
+  )
 
   app.view('settings_submit', async ({ ack, view, context, body, client }) => {
     await ack()
     try {
       const values = view.state.values
       const officeName = values.office_name.office_name_input.value
-      const selectedPlace = values.office_address.office_address_input.selected_option
+      const selectedPlace =
+        values.office_address.office_address_input.selected_option
 
       // Get current settings
       const currentSettings = await getWorkspaceSettings(context.teamId!)
@@ -145,12 +146,20 @@ export const setupEventHandlers = (
         // Use new office name if provided, otherwise keep current
         officeName: officeName || currentSettings.officeName,
         // If we have new place details, use those, otherwise keep current location info
-        officeAddress: locationDetails ? selectedPlace.text.text : currentSettings.officeAddress,
-        latitude: locationDetails ? locationDetails.latitude : currentSettings.latitude,
-        longitude: locationDetails ? locationDetails.longitude : currentSettings.longitude,
-        timezone: locationDetails ? locationDetails.timezone : currentSettings.timezone,
+        officeAddress: locationDetails
+          ? selectedPlace.text.text
+          : currentSettings.officeAddress,
+        latitude: locationDetails
+          ? locationDetails.latitude
+          : currentSettings.latitude,
+        longitude: locationDetails
+          ? locationDetails.longitude
+          : currentSettings.longitude,
+        timezone: locationDetails
+          ? locationDetails.timezone
+          : currentSettings.timezone,
         // Add updated categories
-        categories: currentSettings.categories
+        categories: currentSettings.categories,
       }
 
       await saveWorkspaceSettings(context.teamId!, settings)
@@ -259,43 +268,41 @@ export const setupEventHandlers = (
     /^set_status_(.+)_(\d+)$/,
     async ({ action, ack, client, body, context }) => {
       try {
-        await ack();
-        const schedule = await getWorkspaceSchedule(context.teamId, state);
-        if (!schedule) return;
+        await ack()
+        const schedule = await getWorkspaceSchedule(context.teamId, state)
+        if (!schedule) return
 
         if (!('selected_option' in action) || !action.selected_option?.value) {
-          logger.warn('No status selected');
-          return;
+          logger.warn('No status selected')
+          return
         }
 
-        const [_, status, day, week] = action.selected_option.value.split(':');
+        const [_, status, day, week] = action.selected_option.value.split(':')
 
-        // Update the schedule
-        const updatedSchedule = updateAttendance(
+        // Check if user is admin
+        // const isAdmin = await checkIfAdmin(client, body.user.id)
+
+        // Update the schedule with the new parameters
+        const updatedSchedule = await updateAttendance(
           schedule,
           day,
           parseInt(week),
           body.user.id,
           status as AttendanceStatus,
-        );
-
-        // Update Slack status
-        await updateUserSlackStatus(
           app,
-          body.user.id,
-          status,
-          context.teamId!
-        );
+          context.teamId!,
+        )
 
         if (context.teamId) {
-          state.set(context.teamId, updatedSchedule);
-          await saveSchedule(context.teamId, updatedSchedule);
+          state.set(context.teamId, updatedSchedule)
+          await saveSchedule(context.teamId, updatedSchedule)
         }
 
         if (!body.view?.id) {
-          logger.warn('View ID is missing');
-          return;
+          logger.warn('View ID is missing')
+          return
         }
+
         await client.views.update({
           view_id: body.view!.id,
           view: {
@@ -306,14 +313,15 @@ export const setupEventHandlers = (
               parseInt(week),
               body.user.id,
               context.teamId!,
+              false,
             ),
           },
-        });
+        })
       } catch (error) {
-        logger.error({ err: error, msg: 'Error handling status update' });
+        logger.error({ err: error, msg: 'Error handling status update' })
       }
     },
-  );
+  )
 
   app.action('select_week', async ({ ack, body, client, context }) => {
     try {
@@ -341,6 +349,4 @@ export const setupEventHandlers = (
       logger.error({ err: error, msg: 'Error handling week selection' })
     }
   })
-
 }
-
