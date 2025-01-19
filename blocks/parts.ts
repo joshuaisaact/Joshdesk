@@ -1,4 +1,10 @@
-import type { Block, KnownBlock } from '@slack/types'
+import type {
+  Block,
+  ContextBlock,
+  KnownBlock,
+  MrkdwnElement,
+  PlainTextOption,
+} from '@slack/types'
 import type { DaySchedule } from '../types/schedule'
 import { format, isBefore, isToday, startOfDay } from 'date-fns'
 import { STATUS_OPTIONS, WEEK_LABELS } from '../constants'
@@ -37,55 +43,6 @@ function renderUserList(
   return users.length
     ? users.map((a) => normalizeUserId(a.userId)).join(' ')
     : `_${emptyMessage}_`
-}
-
-function createStatusSelector(
-  day: string,
-  currentWeek: number,
-  userStatus: string | undefined,
-  categoryMap: Map<string, { emoji: string; displayName: string }>,
-  enabledCategories: Array<{ id: string; emoji: string; displayName: string }>,
-): KnownBlock {
-  const statusOptions = enabledCategories.map((category) => ({
-    text: {
-      type: 'plain_text',
-      text: `${category.emoji} ${category.displayName}`,
-      emoji: true,
-    },
-    value: `status:${category.id}:${day}:${currentWeek}`,
-  }))
-
-  return {
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: ' ',
-    },
-    accessory: {
-      type: 'static_select',
-      placeholder: {
-        type: 'plain_text',
-        text:
-          userStatus && categoryMap.has(userStatus)
-            ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
-            : '🔘 Set your status...',
-        emoji: true,
-      },
-      options: statusOptions,
-      initial_option:
-        userStatus && categoryMap.has(userStatus)
-          ? {
-              text: {
-                type: 'plain_text',
-                text: `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`,
-                emoji: true,
-              },
-              value: `status:${userStatus}:${day}:${currentWeek}`,
-            }
-          : undefined,
-      action_id: `set_status_${day.toLowerCase()}_${currentWeek}`,
-    },
-  }
 }
 
 function createCategorySection({
@@ -172,15 +129,15 @@ export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
     text: ' ',
   },
   accessory: {
-    type: 'static_select' as const,
+    type: 'static_select',
     placeholder: {
-      type: 'plain_text' as const,
+      type: 'plain_text',
       text: 'Select week',
       emoji: true,
     },
     options: WEEK_LABELS.map((label, index) => ({
       text: {
-        type: 'plain_text' as const,
+        type: 'plain_text',
         text: label,
         emoji: true,
       },
@@ -188,7 +145,7 @@ export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
     })),
     initial_option: {
       text: {
-        type: 'plain_text' as const,
+        type: 'plain_text',
         text: WEEK_LABELS[currentWeek],
         emoji: true,
       },
@@ -197,6 +154,96 @@ export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
     action_id: 'select_week',
   },
 })
+
+const getWeatherElements = (
+  dayWeather: ReturnType<typeof getFormattedWeather>,
+  isCurrentDay: boolean,
+): MrkdwnElement[] => {
+  if (!dayWeather) return []
+
+  const elements: MrkdwnElement[] = [
+    {
+      type: 'mrkdwn',
+      text: `${dayWeather.emoji}  ${dayWeather.temp}`,
+    },
+  ]
+
+  // Handle description and precipitation together
+  const precipText =
+    !isCurrentDay && dayWeather.precipitation && dayWeather.precipitation >= 20
+      ? ` (${dayWeather.precipitation}% chance)`
+      : ''
+
+  elements.push({
+    type: 'mrkdwn',
+    text: dayWeather.description + precipText,
+  })
+
+  if (isCurrentDay) {
+    // Current day elements
+    if (dayWeather.feelsLike) {
+      elements.push({
+        type: 'mrkdwn',
+        text: `Feels like ${dayWeather.feelsLike}°C`,
+      })
+    }
+
+    if (dayWeather.uvIndex !== undefined) {
+      const uvIndicator =
+        dayWeather.uvIndex >= 8
+          ? '🔴'
+          : dayWeather.uvIndex >= 6
+            ? '🟠'
+            : dayWeather.uvIndex >= 3
+              ? '🟡'
+              : '🟢'
+      elements.push({
+        type: 'mrkdwn',
+        text: `UV ${dayWeather.uvIndex} ${uvIndicator}`,
+      })
+    }
+
+    if (dayWeather.humidity) {
+      elements.push({
+        type: 'mrkdwn',
+        text: `${dayWeather.humidity}% humidity`,
+      })
+    }
+
+    // Add wind info if significant
+    if (dayWeather.windSpeed && dayWeather.windSpeed >= 15) {
+      const windText =
+        dayWeather.windSpeed >= 30
+          ? `Strong wind ${dayWeather.windSpeed}mph 💨💨`
+          : dayWeather.windSpeed >= 20
+            ? `Windy ${dayWeather.windSpeed}mph 💨`
+            : `Breezy ${dayWeather.windSpeed}mph`
+      elements.push({
+        type: 'mrkdwn',
+        text: `${windText}`,
+      })
+    }
+
+    elements.push({
+      type: 'mrkdwn',
+      text: `<https://www.metoffice.gov.uk/weather/forecast/gcpvj0v07|Details>`,
+    })
+  } else {
+    // Add wind warning for future days if very windy
+    if (dayWeather.windSpeed && dayWeather.windSpeed >= 20) {
+      const windText =
+        dayWeather.windSpeed >= 30
+          ? `Strong wind ${dayWeather.windSpeed}mph 💨💨`
+          : `Windy ${dayWeather.windSpeed}mph 💨`
+      elements.push({
+        type: 'mrkdwn',
+        text: `${windText}`,
+      })
+    }
+  }
+
+  return elements
+}
 
 export function createDayBlock(
   day: string,
@@ -253,22 +300,9 @@ export function createDayBlock(
     ...(dayWeather
       ? [
           {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: `${dayWeather.emoji} ${dayWeather.temp} • ${dayWeather.description}${
-                  dayWeather.feelsLike
-                    ? ` • _Feels like ${dayWeather.feelsLike}°C_`
-                    : ''
-                }${
-                  isCurrentDay
-                    ? ` • ${dayWeather.humidity}% humidity • UV ${dayWeather.uvIndex} • <https://www.metoffice.gov.uk/weather/forecast/gcpvj0v07|Met Office Forecast>`
-                    : ''
-                }`,
-              },
-            ],
-          },
+            type: 'context' as const,
+            elements: getWeatherElements(dayWeather, isCurrentDay),
+          } satisfies ContextBlock,
         ]
       : []),
 
@@ -302,7 +336,7 @@ export function createDayBlock(
             text:
               userStatus && categoryMap.has(userStatus)
                 ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
-                : `🔘 Set ${format(scheduleDate, 'do MMM')} status...`,
+                : `Set ${format(scheduleDate, ' eeee')} status...`,
             emoji: true,
           },
           options: enabledCategories.map((c) => ({
