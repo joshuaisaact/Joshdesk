@@ -7,7 +7,10 @@ import { createMonthSchedule } from './schedule'
 import type { Statement } from 'bun:sqlite'
 
 class CategoryError extends Error {
-  constructor(message: string, public cause?: unknown) {
+  constructor(
+    message: string,
+    public cause?: unknown,
+  ) {
     super(message)
     this.name = 'CategoryError'
   }
@@ -39,10 +42,34 @@ export interface Category {
 }
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'office', displayName: 'Office', emoji: '🏢', sortOrder: 0, isEnabled: true },
-  { id: 'remote', displayName: 'Home', emoji: '🏠', sortOrder: 1, isEnabled: true },
-  { id: 'traveling', displayName: 'Traveling', emoji: '✈️', sortOrder: 2, isEnabled: true },
-  { id: 'vacation', displayName: 'Holiday', emoji: '🌴', sortOrder: 3, isEnabled: true }
+  {
+    id: 'office',
+    displayName: 'Office',
+    emoji: '🏢',
+    sortOrder: 0,
+    isEnabled: true,
+  },
+  {
+    id: 'remote',
+    displayName: 'Home',
+    emoji: '🏠',
+    sortOrder: 1,
+    isEnabled: true,
+  },
+  {
+    id: 'traveling',
+    displayName: 'Traveling',
+    emoji: '✈️',
+    sortOrder: 2,
+    isEnabled: false,
+  },
+  {
+    id: 'holiday',
+    displayName: 'Holiday',
+    emoji: '🌴',
+    sortOrder: 3,
+    isEnabled: false,
+  },
 ]
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -53,7 +80,6 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   timezone: 'Europe/London',
   categories: DEFAULT_CATEGORIES,
 }
-
 
 type QueryParams = [string]
 
@@ -88,7 +114,10 @@ db.run(`CREATE TABLE IF NOT EXISTS workspace_categories (
 export const loadSchedule = (teamId: string) =>
   tryCatch(async () => {
     const row = db
-      .query<ScheduleRow, QueryParams>('SELECT schedule_data FROM schedules WHERE team_id = ?')
+      .query<
+        ScheduleRow,
+        QueryParams
+      >('SELECT schedule_data FROM schedules WHERE team_id = ?')
       .get(teamId)
 
     if (!row) {
@@ -96,7 +125,9 @@ export const loadSchedule = (teamId: string) =>
       const isFridayAfternoon = now.getDay() === 5 && now.getHours() >= 16
       const shouldStartFromNext = isFridayAfternoon || now.getDay() >= 5 // Friday afternoon or weekend
 
-      logger.info(`Creating new schedule for team ${teamId}, starting from next week: ${shouldStartFromNext}`)
+      logger.info(
+        `Creating new schedule for team ${teamId}, starting from next week: ${shouldStartFromNext}`,
+      )
       const newSchedule = createMonthSchedule(shouldStartFromNext)
       await saveSchedule(teamId, newSchedule)
       return newSchedule
@@ -127,13 +158,10 @@ export const getWorkspaceCategories = (teamId: string): Category[] => {
       throw new CategoryError('Team ID is required')
     }
 
-    logger.info({
-      msg: 'Querying workspace categories',
-      teamId,
-    })
-
     const rows = db
-      .query('SELECT * FROM workspace_categories WHERE team_id = ? ORDER BY sort_order')
+      .query(
+        'SELECT * FROM workspace_categories WHERE team_id = ? ORDER BY sort_order',
+      )
       .all([teamId]) as Array<{
       category_id: string
       display_name: string
@@ -146,7 +174,7 @@ export const getWorkspaceCategories = (teamId: string): Category[] => {
       logger.info({
         msg: `No categories found for team ${teamId}, using defaults`,
         teamId,
-        defaults: DEFAULT_CATEGORIES
+        defaults: DEFAULT_CATEGORIES,
       })
 
       // Initialize defaults if none exist
@@ -157,19 +185,19 @@ export const getWorkspaceCategories = (teamId: string): Category[] => {
       return DEFAULT_CATEGORIES
     }
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       id: row.category_id,
       displayName: row.display_name,
       emoji: row.emoji,
       sortOrder: row.sort_order,
-      isEnabled: Boolean(row.is_enabled)
+      isEnabled: Boolean(row.is_enabled),
     }))
   } catch (error) {
     logger.error({
       msg: 'Failed to get workspace categories',
       error: error instanceof Error ? error.message : String(error),
       stackTrace: error instanceof Error ? error.stack : undefined,
-      teamId
+      teamId,
     })
     return DEFAULT_CATEGORIES
   }
@@ -177,7 +205,7 @@ export const getWorkspaceCategories = (teamId: string): Category[] => {
 
 export const saveWorkspaceCategories = async (
   teamId: string,
-  categories: Category[]
+  categories: Category[],
 ): Promise<void> => {
   let deleteStmt: Statement | null = null
   let insertStmt: Statement | null = null
@@ -201,9 +229,11 @@ export const saveWorkspaceCategories = async (
     db.transaction(() => {
       try {
         // Prepare statements
-        deleteStmt = db.prepare('DELETE FROM workspace_categories WHERE team_id = ?')
+        deleteStmt = db.prepare(
+          'DELETE FROM workspace_categories WHERE team_id = ?',
+        )
         insertStmt = db.prepare(`
-          INSERT INTO workspace_categories 
+          INSERT INTO workspace_categories
           (team_id, category_id, display_name, emoji, sort_order, is_enabled)
           VALUES (?, ?, ?, ?, ?, ?)
         `)
@@ -212,7 +242,7 @@ export const saveWorkspaceCategories = async (
         deleteStmt.run([teamId])
 
         // Insert new categories
-        categories.forEach(cat => {
+        categories.forEach((cat) => {
           if (!insertStmt) return // TypeScript guard
 
           insertStmt.run([
@@ -221,20 +251,20 @@ export const saveWorkspaceCategories = async (
             cat.displayName,
             cat.emoji,
             cat.sortOrder,
-            Number(cat.isEnabled) // Explicitly convert boolean to number
+            Number(cat.isEnabled), // Explicitly convert boolean to number
           ])
         })
 
         logger.info({
           msg: 'Successfully saved workspace categories',
           teamId,
-          categoryCount: categories.length
+          categoryCount: categories.length,
         })
       } catch (error) {
         logger.error({
           msg: 'Error in category transaction',
           error,
-          teamId
+          teamId,
         })
         throw error // Re-throw to trigger rollback
       }
@@ -244,39 +274,30 @@ export const saveWorkspaceCategories = async (
       msg: 'Failed to save workspace categories',
       error,
       teamId,
-      categoriesCount: categories?.length
+      categoriesCount: categories?.length,
     })
     throw new CategoryError('Failed to save categories', error)
-  } finally {
-    // Clean up prepared statements
-    deleteStmt?.finalize()
-    insertStmt?.finalize()
   }
 }
 
-
 export const getWorkspaceSettings = (teamId: string): WorkspaceSettings => {
   if (!teamId) {
-    logger.warn('getWorkspaceSettings called with no teamId, using defaults');
-    return DEFAULT_SETTINGS;
+    logger.warn('getWorkspaceSettings called with no teamId, using defaults')
+    return DEFAULT_SETTINGS
   }
-
-  logger.info('getWorkspaceSettings called with teamId:', teamId);
 
   try {
     const row = db
       .query('SELECT * FROM workspace_settings WHERE team_id = ?')
-      .get(teamId) as any;
-
-    logger.info('DB query result:', { row, teamId });
+      .get(teamId) as any
 
     const categories = getWorkspaceCategories(teamId)
 
     if (!row) {
-      logger.info('No settings found for team, using defaults', { teamId });
+      logger.info('No settings found for team, using defaults', { teamId })
       return {
         ...DEFAULT_SETTINGS,
-        categories
+        categories,
       }
     }
 
@@ -286,18 +307,18 @@ export const getWorkspaceSettings = (teamId: string): WorkspaceSettings => {
       latitude: row.latitude,
       longitude: row.longitude,
       timezone: row.timezone,
-      categories
+      categories,
     }
   } catch (error) {
     logger.error({
       msg: 'Error fetching workspace settings, using defaults',
       error,
-      teamId
-    });
+      teamId,
+    })
     return {
       ...DEFAULT_SETTINGS,
-      categories: DEFAULT_SETTINGS.categories
-    };
+      categories: DEFAULT_SETTINGS.categories,
+    }
   }
 }
 
@@ -341,13 +362,13 @@ export const saveWorkspaceSettings = async (
 
         logger.info({
           msg: 'Successfully saved workspace settings',
-          teamId
+          teamId,
         })
       } catch (error) {
         logger.error({
           msg: 'Error in settings transaction',
           error,
-          teamId
+          teamId,
         })
         throw error
       }
@@ -356,7 +377,7 @@ export const saveWorkspaceSettings = async (
     logger.error({
       msg: 'Failed to save workspace settings',
       error,
-      teamId
+      teamId,
     })
     throw new Error('Failed to save workspace settings')
   }
@@ -364,8 +385,10 @@ export const saveWorkspaceSettings = async (
 
 export const getAllWorkspaceIds = () =>
   tryCatch(async () => {
-    const rows = db.query('SELECT team_id FROM schedules WHERE team_id IS NOT NULL').all() as Array<{ team_id: string }>
-    return rows.map(row => row.team_id)
+    const rows = db
+      .query('SELECT team_id FROM schedules WHERE team_id IS NOT NULL')
+      .all() as Array<{ team_id: string }>
+    return rows.map((row) => row.team_id)
   }, 'Error getting workspace IDs')
 
 export const cleanupInvalidData = () =>
@@ -383,7 +406,9 @@ export const initializeWorkspaceCategories = (teamId: string) =>
     }
 
     const existing = db
-      .query('SELECT COUNT(*) as count FROM workspace_categories WHERE team_id = ?')
+      .query(
+        'SELECT COUNT(*) as count FROM workspace_categories WHERE team_id = ?',
+      )
       .get(teamId) as { count: number }
 
     if (existing.count === 0) {

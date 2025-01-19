@@ -4,13 +4,13 @@ export const AttendanceStatus = {
   OFFICE: 'office',
   REMOTE: 'remote',
   TRAVELING: 'traveling',
-  CLIENT: 'client',
+  HOLIDAY: 'holiday',
 } as const
 
 export type AttendanceStatus =
   (typeof AttendanceStatus)[keyof typeof AttendanceStatus]
 
-export const WEEK_LABELS = ['Current Week', 'Next Week', 'Week 3', 'Week 4']
+export const WEEK_LABELS = ['This Week', 'Next Week', 'Week 3', 'Week 4']
 
 export const DB_PATH = join(import.meta.dir, '..', 'data', 'joshdesk.db')
 
@@ -39,7 +39,7 @@ export const STATUS_OPTIONS = [
     value: 'traveling',
   },
   {
-    text: { type: 'plain_text' as const, text: '🌴 Vacation', emoji: true },
-    value: 'client',
+    text: { type: 'plain_text' as const, text: '🌴 Holiday', emoji: true },
+    value: 'holiday',
   },
 ]

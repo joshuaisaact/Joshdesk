@@ -1,21 +1,106 @@
 import type { Block, KnownBlock } from '@slack/types'
 import type { DaySchedule } from '../types/schedule'
 import { format, isBefore, isToday, startOfDay } from 'date-fns'
-import {  STATUS_OPTIONS, WEEK_LABELS } from '../constants'
-import { logger } from '../utils/logger'
+import { STATUS_OPTIONS, WEEK_LABELS } from '../constants'
 import {
-  getWeather,
+  getFormattedWeather,
   getWeatherEmoji,
   WEATHER_CODES,
   type WeatherData,
 } from '../utils/weather'
 import { getDailyQuote } from '../utils/quotes'
-import { getWorkspaceSettings, type WorkspaceSettings } from '../services/storage'
+import { type WorkspaceSettings } from '../services/storage'
+
+const DIVIDER_BLOCK: KnownBlock = { type: 'divider' }
+const TINY_SPACER: KnownBlock = {
+  type: 'context',
+  elements: [{ type: 'mrkdwn', text: ' ' }],
+}
+
+interface CategoryGroup {
+  emoji: string
+  displayName: string
+  users: Array<{ userId: string }>
+  emptyMessage: string
+}
 
 function normalizeUserId(userId: string): string {
   if (!userId) return ''
   if (userId.startsWith('<@') && userId.endsWith('>')) return userId
   return `<@${userId}>`
+}
+
+function renderUserList(
+  users: Array<{ userId: string }>,
+  emptyMessage: string,
+): string {
+  return users.length
+    ? users.map((a) => normalizeUserId(a.userId)).join(' ')
+    : `_${emptyMessage}_`
+}
+
+function createStatusSelector(
+  day: string,
+  currentWeek: number,
+  userStatus: string | undefined,
+  categoryMap: Map<string, { emoji: string; displayName: string }>,
+  enabledCategories: Array<{ id: string; emoji: string; displayName: string }>,
+): KnownBlock {
+  const statusOptions = enabledCategories.map((category) => ({
+    text: {
+      type: 'plain_text',
+      text: `${category.emoji} ${category.displayName}`,
+      emoji: true,
+    },
+    value: `status:${category.id}:${day}:${currentWeek}`,
+  }))
+
+  return {
+    type: 'section',
+    text: {
+      type: 'mrkdwn',
+      text: ' ',
+    },
+    accessory: {
+      type: 'static_select',
+      placeholder: {
+        type: 'plain_text',
+        text:
+          userStatus && categoryMap.has(userStatus)
+            ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
+            : '🔘 Set your status...',
+        emoji: true,
+      },
+      options: statusOptions,
+      initial_option:
+        userStatus && categoryMap.has(userStatus)
+          ? {
+              text: {
+                type: 'plain_text',
+                text: `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`,
+                emoji: true,
+              },
+              value: `status:${userStatus}:${day}:${currentWeek}`,
+            }
+          : undefined,
+      action_id: `set_status_${day.toLowerCase()}_${currentWeek}`,
+    },
+  }
+}
+
+function createCategorySection({
+  emoji,
+  displayName,
+  users,
+  emptyMessage,
+}: CategoryGroup): KnownBlock {
+  return {
+    type: 'section',
+    text: {
+      type: 'mrkdwn',
+      text: `${emoji} ${displayName}\n\n${renderUserList(users, emptyMessage)}`,
+    },
+  }
 }
 
 export const createHeaderBlock = async (
@@ -25,86 +110,7 @@ export const createHeaderBlock = async (
 ): Promise<(KnownBlock | Block)[]> => {
   const quoteBlocks = await getDailyQuote()
 
-  const blocks: (KnownBlock | Block)[] = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*🏢 ${settings.officeName}*  📍 ${settings.officeAddress}`,
-      },
-      accessory: isHomeView
-        ? {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: '⚙️ Settings',
-              emoji: true,
-            },
-            action_id: 'open_settings',
-          }
-        : {
-            type: 'static_select',
-            placeholder: {
-              type: 'plain_text',
-              text: 'Select week',
-              emoji: true,
-            },
-            options: WEEK_LABELS.map((label, index) => ({
-              text: {
-                type: 'plain_text',
-                text: label,
-                emoji: true,
-              },
-              value: index.toString(),
-            })),
-            initial_option: {
-              text: {
-                type: 'plain_text',
-                text: WEEK_LABELS[currentWeek],
-                emoji: true,
-              },
-              value: currentWeek.toString(),
-            },
-            action_id: 'select_week',
-          },
-    },
-    // If we're in the home view, add the week selector in a separate section
-    ...(isHomeView
-      ? [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: ' ',
-            },
-            accessory: {
-              type: 'static_select',
-              placeholder: {
-                type: 'plain_text',
-                text: 'Select week',
-                emoji: true,
-              },
-              options: WEEK_LABELS.map((label, index) => ({
-                text: {
-                  type: 'plain_text',
-                  text: label,
-                  emoji: true,
-                },
-                value: index.toString(),
-              })),
-              initial_option: {
-                text: {
-                  type: 'plain_text',
-                  text: WEEK_LABELS[currentWeek],
-                  emoji: true,
-                },
-                value: currentWeek.toString(),
-              },
-              action_id: 'select_week',
-            },
-          },
-        ]
-      : []),
+  return [
     {
       type: 'divider',
     },
@@ -112,28 +118,52 @@ export const createHeaderBlock = async (
     {
       type: 'divider',
     },
-  ]
 
-  if (isHomeView) {
-    blocks.push({
+    // Header with office name and settings
+    {
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: settings.officeName,
+        emoji: true,
+      },
+    },
+
+    // Office address in context block for subtle appearance
+    {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: ' ',
+        text: `📍 _${settings.officeAddress}_`, // Making it italic to keep it subtle like before
       },
-    })
-  }
-
-  return blocks
+      accessory: {
+        type: 'static_select',
+        placeholder: {
+          type: 'plain_text',
+          text: 'Choose a week',
+          emoji: true,
+        },
+        options: WEEK_LABELS.map((label, index) => ({
+          text: {
+            type: 'plain_text',
+            text: label,
+            emoji: true,
+          },
+          value: index.toString(),
+        })),
+        initial_option: {
+          text: {
+            type: 'plain_text',
+            text: WEEK_LABELS[currentWeek],
+            emoji: true,
+          },
+          value: currentWeek.toString(),
+        },
+        action_id: 'select_week',
+      },
+    },
+  ]
 }
-
-export const createWeekLabelBlock = (weekLabel: string): KnownBlock => ({
-  type: 'section',
-  text: {
-    type: 'mrkdwn',
-    text: `*${weekLabel}*`,
-  },
-})
 
 export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
   type: 'section',
@@ -168,13 +198,7 @@ export const createWeekSelectorBlock = (currentWeek: number): KnownBlock => ({
   },
 })
 
-function shouldShowDay(scheduleDate: Date): boolean {
-  const today = startOfDay(new Date())
-  const dayDate = startOfDay(scheduleDate)
-  return !isBefore(dayDate, today)
-}
-
-export const createDayBlock = (
+export function createDayBlock(
   day: string,
   schedule: DaySchedule,
   isHomeView: boolean,
@@ -182,67 +206,40 @@ export const createDayBlock = (
   userId: string,
   weather: WeatherData | null,
   settings: WorkspaceSettings,
-  teamId: string,
-): (KnownBlock | Block)[] | null => {
-  const userStatus = schedule.attendees.find(
-    (a) => normalizeUserId(a.userId) === normalizeUserId(userId),
-  )?.status
-  // const settings = getWorkspaceSettings(teamId)
-  const enabledCategories = settings.categories.filter(c => c.isEnabled)
-  const categoryMap = new Map(enabledCategories.map(c => [c.id, c]))
+): (KnownBlock | Block)[] | null {
+  // Setup and validation
   const scheduleDate = new Date(
     schedule.year,
     schedule.month - 1,
     schedule.date,
   )
-  if (!shouldShowDay(scheduleDate)) {
-    return null
-  }
+  if (!shouldShowDay(scheduleDate)) return null
+
   const isCurrentDay = isToday(scheduleDate)
   const formattedDate = format(scheduleDate, 'EEEE, do MMMM')
+  const dayWeather = getFormattedWeather(weather, scheduleDate, isCurrentDay)
 
-  // Get weather for this day
-  let dayWeather = null
-  if (weather) {
-    const dayIndex = weather.dailyForecast.findIndex(
-      (forecast) =>
-        format(new Date(forecast.time), 'yyyy-MM-dd') ===
-        format(scheduleDate, 'yyyy-MM-dd'),
-    )
+  const userStatus = schedule.attendees.find(
+    (a) => normalizeUserId(a.userId) === normalizeUserId(userId),
+  )?.status
 
-    if (dayIndex !== -1) {
-      const forecast = weather.dailyForecast[dayIndex]
-      if (isCurrentDay) {
-        dayWeather = {
-          emoji: getWeatherEmoji(weather.weatherCode, weather.isDay),
-          temp: `${weather.temperature}°C`,
-          description: weather.description,
-          feelsLike: weather.feelsLike,
-        }
-      } else {
-        dayWeather = {
-          emoji: getWeatherEmoji(forecast.weatherCode, true),
-          temp: `${forecast.temperatureMax}°/${forecast.temperatureMin}°C`,
-          description: WEATHER_CODES[forecast.weatherCode],
-          // Note: daily forecast might not have feels like temp
-
-        }
-        logger.info(dayWeather)
-      }
-    }
-  }
-
-
-  // Simple categorization of users
-  const officeUsers = schedule.attendees.filter((a) => a.status === 'office')
-  const remoteUsers = schedule.attendees.filter((a) => a.status === 'remote')
-  const travelingUsers = schedule.attendees.filter(
-    (a) => a.status === 'traveling',
+  const enabledCategories = settings.categories.filter(
+    (c) => c.isEnabled || c.id === 'office',
   )
-  const clientUsers = schedule.attendees.filter((a) => a.status === 'client')
+  const categoryMap = new Map(enabledCategories.map((c) => [c.id, c]))
 
+  // Group users by category
+  const usersByCategory = enabledCategories.reduce(
+    (acc, category) => ({
+      ...acc,
+      [category.id]: schedule.attendees.filter((a) => a.status === category.id),
+    }),
+    {} as Record<string, typeof schedule.attendees>,
+  )
+
+  // Build blocks
   const blocks: (KnownBlock | Block)[] = [
-    spacer,
+    // Header section
     {
       type: 'header',
       text: {
@@ -251,174 +248,149 @@ export const createDayBlock = (
         emoji: true,
       },
     },
-    {
-      type: 'divider',
-    },
+
+    // Weather section (if available)
+    ...(dayWeather
+      ? [
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `${dayWeather.emoji} ${dayWeather.temp} • ${dayWeather.description}${
+                  dayWeather.feelsLike
+                    ? ` • _Feels like ${dayWeather.feelsLike}°C_`
+                    : ''
+                }${
+                  isCurrentDay
+                    ? ` • ${dayWeather.humidity}% humidity • UV ${dayWeather.uvIndex} • <https://www.metoffice.gov.uk/weather/forecast/gcpvj0v07|Met Office Forecast>`
+                    : ''
+                }`,
+              },
+            ],
+          },
+        ]
+      : []),
+
+    DIVIDER_BLOCK,
   ]
 
-  if (dayWeather) {
-    blocks.push(
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `${dayWeather.emoji} ${dayWeather.temp} • ${dayWeather.description}${
-              dayWeather.feelsLike
-                ? ` • _Feels like ${dayWeather.feelsLike}°C_`
-                : ''
-            }${
-              isCurrentDay
-                ? ` • ${weather?.humidity}% humidity • UV ${weather?.uvIndex} • <https://www.metoffice.gov.uk/weather/forecast/gcpvj0v07|Met Office Forecast>`
-                : ''
-            }`,
-          },
-        ],
-      } as KnownBlock,
-      spacer,
-    )
-  }
+  // Add categories with proper spacing
+  enabledCategories.forEach((category, index) => {
+    const categoryGroup: CategoryGroup = {
+      emoji: category.emoji,
+      displayName: category.displayName,
+      users: usersByCategory[category.id] || [],
+      emptyMessage: getEmptyMessage(category.id),
+    }
 
-  // Add travel info right after the date for today only
-  if (isCurrentDay) {
-    blocks.push(
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: '🚂 Liverpool St: Good service | Central Line: Minor delays',
-          },
-        ],
-      },
-      spacer,
-    )
-  }
-
-  if (categoryMap.has('office')) {
-    blocks.push(
-      {
+    if (index === enabledCategories.length - 1 && isHomeView) {
+      // For the last category, create a section with both category and status selector
+      blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `🏢 Office _(${officeUsers.length} going)_\n`,
+          text: `${category.emoji} ${category.displayName}\n\n${renderUserList(
+            usersByCategory[category.id] || [],
+            getEmptyMessage(category.id),
+          )}`,
         },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: renderUserList(officeUsers, 'No one in the office'),
-        },
-      },
-      spacer
-    )
-  }
-
-  if (categoryMap.has('remote')) {
-    blocks.push(
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '🏠 Home',
-        },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: renderUserList(remoteUsers, 'No one working remotely'),
-        },
-      },
-      spacer
-    )
-  }
-
-  if (categoryMap.has('traveling')) {
-    blocks.push(
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '✈️ Traveling for work',
-        },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: renderUserList(travelingUsers, 'No one traveling'),
-        },
-      },
-      spacer
-    )
-  }
-
-  if (categoryMap.has('vacation')) {
-    blocks.push(
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '🌴 Holiday',
-        },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: renderUserList(clientUsers, 'No one on holiday'),
-        },
-      },
-      spacer
-    )
-  }
-
-  if (isHomeView) {
-    const statusOptions = STATUS_OPTIONS
-      .filter(option => categoryMap.has(option.value))
-      .map((option) => ({
-        ...option,
-        value: `status:${option.value}:${day}:${currentWeek}`,
-      }))
-
-    blocks.push({
-      type: 'actions',
-      elements: [
-        {
-          type: 'static_select' as const,
+        accessory: {
+          type: 'static_select',
           placeholder: {
-            type: 'plain_text' as const,
-            text: userStatus && categoryMap.has(userStatus)
-              ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
-              : '🔘 Set your status...',
+            type: 'plain_text',
+            text:
+              userStatus && categoryMap.has(userStatus)
+                ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
+                : `🔘 Set ${format(scheduleDate, 'do MMM')} status...`,
             emoji: true,
           },
-          options: statusOptions,
-          initial_option: userStatus && categoryMap.has(userStatus)
-            ? statusOptions.find((option) =>
-              option.value.includes(`status:${userStatus}:`),
-            )
-            : undefined,
+          options: enabledCategories.map((c) => ({
+            text: {
+              type: 'plain_text',
+              text: `${c.emoji} ${c.displayName}`,
+              emoji: true,
+            },
+            value: `status:${c.id}:${day}:${currentWeek}`,
+          })),
+          initial_option:
+            userStatus && categoryMap.has(userStatus)
+              ? {
+                  text: {
+                    type: 'plain_text',
+                    text: `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`,
+                    emoji: true,
+                  },
+                  value: `status:${userStatus}:${day}:${currentWeek}`,
+                }
+              : undefined,
           action_id: `set_status_${day.toLowerCase()}_${currentWeek}`,
         },
-      ],
-    })
-  }
+      })
+    } else {
+      // For all other categories, render normally
+      blocks.push(createCategorySection(categoryGroup))
+      if (index < enabledCategories.length - 1) {
+        blocks.push(TINY_SPACER)
+      }
+    }
+  })
+
+  blocks.push(TINY_SPACER, DIVIDER_BLOCK, TINY_SPACER)
 
   return blocks
 }
 
-const spacer = {
-  type: 'context',
-  elements: [{ type: 'mrkdwn', text: ' ' }],
+export const createFooterBlock = (
+  isHomeView: boolean,
+  isAdmin: boolean,
+): (KnownBlock | Block)[] => {
+  if (!isHomeView || !isAdmin) return []
+
+  return [
+    {
+      type: 'divider',
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: 'Admin Settings',
+        },
+      ],
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: 'Configure workspace settings including office location, categories, and timezone.',
+      },
+      accessory: {
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: '⚙️ Workspace Settings',
+          emoji: true,
+        },
+        action_id: 'open_settings',
+      },
+    },
+  ]
 }
 
-const renderUserList = (
-  users: Array<{ userId: string }>,
-  emptyMessage: string,
-) =>
-  users.length
-    ? users.map((a) => normalizeUserId(a.userId)).join(' ')
-    : `_${emptyMessage}_`
+function getEmptyMessage(categoryId: string): string {
+  const messages: Record<string, string> = {
+    office: 'No one in the office',
+    remote: 'No one working remotely',
+    traveling: 'No one traveling',
+    holiday: 'No one on holiday',
+  }
+  return messages[categoryId] || 'No one in this category'
+}
+
+function shouldShowDay(scheduleDate: Date): boolean {
+  const today = startOfDay(new Date())
+  const dayDate = startOfDay(scheduleDate)
+  return !isBefore(dayDate, today)
+}

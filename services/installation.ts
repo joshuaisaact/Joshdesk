@@ -8,7 +8,8 @@ type InstallationRow = {
   data: string
 }
 
-const installationDb = new Database('installations.sqlite')
+export const installationDb = new Database('installations.sqlite')
+
 installationDb.exec(`
   CREATE TABLE IF NOT EXISTS installations (
     id TEXT PRIMARY KEY,

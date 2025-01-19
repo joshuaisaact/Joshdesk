@@ -4,11 +4,11 @@ import {
   createHeaderBlock,
   createDayBlock,
   createWeekSelectorBlock,
+  createFooterBlock,
 } from './parts'
-import { format } from 'date-fns/format'
 import { getWeather } from '../utils/weather'
 import { getWorkspaceSettings } from '../services/storage'
-import { logger } from '../utils/logger.ts'
+import { checkIfAdmin } from '../utils/slack.ts'
 
 export const generateBlocks = async (
   monthSchedule: MonthSchedule,
@@ -16,22 +16,13 @@ export const generateBlocks = async (
   currentWeek: number = 0,
   userId: string,
   teamId: string,
+  isAdmin: boolean,
 ): Promise<(KnownBlock | Block)[]> => {
   const settings = getWorkspaceSettings(teamId)
-
 
   const blocks: (KnownBlock | Block)[] = [
     ...(await createHeaderBlock(isHomeView, currentWeek, settings)),
   ]
-
-  logger.info('Settings for weather:', {
-    teamId,
-    lat: settings.latitude,
-    long: settings.longitude,
-    timezone: settings.timezone,
-    officeName: settings.officeName // Add this to verify we have the right settings
-  });
-
 
   const weather = await getWeather(
     settings.latitude,
@@ -53,14 +44,7 @@ export const generateBlocks = async (
   }
 
   let hasVisibleDays = false
-  logger.info('dayblocks called with:', {
-    isHomeView: isHomeView,
-    currentWeek: currentWeek,
-    userId: userId,
-    weather: weather,
-    settings: settings,
-    teamId: teamId,
-  })
+
   for (const [day, schedule] of Object.entries(weekSchedule)) {
     const dayBlocks = await createDayBlock(
       day,
@@ -70,7 +54,6 @@ export const generateBlocks = async (
       userId,
       weather,
       settings,
-      teamId,
     )
     if (dayBlocks) {
       hasVisibleDays = true
@@ -87,6 +70,8 @@ export const generateBlocks = async (
       },
     })
   }
+
+  blocks.push(...createFooterBlock(isHomeView, isAdmin))
 
   return blocks
 }

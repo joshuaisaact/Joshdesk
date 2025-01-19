@@ -1,6 +1,8 @@
 import type { Attendee, MonthSchedule, WeekSchedule } from '../types/schedule'
 import { AttendanceStatus } from '../constants'
 import { addWeeks, addDays, startOfWeek, nextMonday, isWeekend } from 'date-fns'
+import { updateUserSlackStatus } from './status-update.ts'
+import type { App } from '@slack/bolt'
 
 const createWeekSchedule = (startDate: Date): WeekSchedule => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -37,13 +39,15 @@ export const createMonthSchedule = (
   )
 }
 
-export const updateAttendance = (
+export const updateAttendance = async (
   schedule: MonthSchedule,
   day: string,
   week: number,
   userId: string,
   status: AttendanceStatus,
-): MonthSchedule => {
+  app: App,
+  teamId: string,
+): Promise<MonthSchedule> => {
   if (!day || !(day in schedule[week])) return schedule
 
   const updatedSchedule = { ...schedule }
@@ -66,6 +70,23 @@ export const updateAttendance = (
       ...updatedSchedule[week][day],
       attendees: existingAttendees,
     },
+  }
+
+  if (status === 'office' || status === 'remote') {
+    // Get the date from the schedule
+    const selectedDate = new Date(
+      updatedSchedule[week][day].year,
+      updatedSchedule[week][day].month - 1, // JavaScript months are 0-based
+      updatedSchedule[week][day].date,
+    )
+
+    await updateUserSlackStatus(
+      app,
+      userId,
+      status, // Use the status directly, don't map to 'home'
+      teamId,
+      selectedDate,
+    )
   }
 
   return updatedSchedule
@@ -99,19 +120,6 @@ export const getUserStatus = (
   const user = `<@${userId}>`
   const attendee = schedule[day]?.attendees.find((a) => a.userId === user)
   return attendee?.status || null
-}
-
-export const getAttendeesByStatus = (
-  schedule: WeekSchedule,
-  day: string,
-): Record<AttendanceStatus, Attendee[]> => {
-  const attendees = schedule[day]?.attendees || []
-  return {
-    office: attendees.filter((a) => a.status === 'office'),
-    remote: attendees.filter((a) => a.status === 'remote'),
-    traveling: attendees.filter((a) => a.status === 'traveling'),
-    client: attendees.filter((a) => a.status === 'client'),
-  }
 }
 
 export const getTotalCapacity = (
