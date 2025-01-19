@@ -27,6 +27,7 @@ export interface WeatherData {
     weatherCode: number
     sunrise: string
     sunset: string
+    precipitation: number
   }[]
 }
 
@@ -84,7 +85,7 @@ export async function getWeather(
         `longitude=${longitude}&` +
         'current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day,uv_index&' +
         'hourly=temperature_2m,weather_code,precipitation_probability&' +
-        'daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset&' +
+        'daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_mean&' +
         `timezone=${timezone}&` +
         'forecast_days=5',
     )
@@ -120,6 +121,7 @@ export async function getWeather(
         weatherCode: data.daily.weather_code[i],
         sunrise: data.daily.sunrise[i],
         sunset: data.daily.sunset[i],
+        precipitation: data.daily.precipitation_probability_mean[i],
       })),
     }
     weatherCache[cacheKey] = {
@@ -135,40 +137,30 @@ export async function getWeather(
 }
 
 // Helper to get weather emoji based on code and time of day
-export function getWeatherEmoji(weatherCode: number, isDay: boolean): string {
-  switch (weatherCode) {
-    case 0:
-      return isDay ? '☀️' : '🌙'
-    case 1:
-    case 2:
-      return isDay ? '🌤️' : '☁️'
-    case 3:
-      return '☁️'
-    case 45:
-    case 48:
-      return '🌫️'
-    case 51:
-    case 53:
-    case 55:
-      return '🌧️'
-    case 61:
-    case 63:
-    case 65:
-      return '🌧️'
-    case 71:
-    case 73:
-    case 75:
-    case 77:
-      return '🌨️'
-    case 80:
-    case 81:
-    case 82:
-      return '🌦️'
-    case 95:
-      return '⛈️'
-    default:
-      return '🌡️'
+export function getWeatherEmoji(code: number, isDay: boolean): string {
+  const emojiMap: { [key: number]: string } = {
+    0: isDay ? '☀️' : '🌙',
+    1: isDay ? '🌤️' : '🌙',
+    2: isDay ? '⛅️' : '🌙☁️',
+    3: '☁️',
+    45: '🌫️',
+    48: '🌫️❄️',
+    51: '🌦️',
+    53: '🌧️',
+    55: '🌧️🌧️',
+    61: '🌧️',
+    63: '🌧️⚡️',
+    65: '⛈️',
+    71: '🌨️',
+    73: '❄️',
+    75: '❄️❄️',
+    77: '❄️',
+    80: '🌦️',
+    81: '🌧️',
+    82: '⛈️',
+    95: '⛈️⚡️',
   }
+  return emojiMap[code] || '🌡️'
 }
 
 export function getFormattedWeather(
@@ -182,6 +174,8 @@ export function getFormattedWeather(
   feelsLike?: number
   humidity?: number
   uvIndex?: number
+  precipitation?: number
+  windSpeed?: number
 } | null {
   if (!weather) return null
 
@@ -209,5 +203,7 @@ export function getFormattedWeather(
     emoji: getWeatherEmoji(forecast.weatherCode, true),
     temp: `${forecast.temperatureMax}°/${forecast.temperatureMin}°C`,
     description: WEATHER_CODES[forecast.weatherCode],
+    precipitation: forecast.precipitation,
+    windSpeed: weather.windSpeed,
   }
 }
