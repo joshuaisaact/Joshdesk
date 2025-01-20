@@ -15,7 +15,6 @@ export const appHomeOpenedHandler = async (
   currentWeek: number = 0,
 ) => {
   try {
-    // Get installation token for this team
     const installation = await installationStore.fetchInstallation({
       teamId: context.teamId!,
       isEnterpriseInstall: false,
@@ -30,7 +29,7 @@ export const appHomeOpenedHandler = async (
     const isAdmin = await checkIfAdmin(client, event.user, context.teamId!)
 
     await client.views.publish({
-      token, // Add the token here
+      token,
       user_id: event.user,
       view: {
         type: 'home',

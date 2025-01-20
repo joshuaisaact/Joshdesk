@@ -192,20 +192,20 @@ const getWeatherElements = (
       })
     }
 
-    if (dayWeather.uvIndex !== undefined) {
-      const uvIndicator =
-        dayWeather.uvIndex >= 8
-          ? '🔴'
-          : dayWeather.uvIndex >= 6
-            ? '🟠'
-            : dayWeather.uvIndex >= 3
-              ? '🟡'
-              : '🟢'
-      elements.push({
-        type: 'mrkdwn',
-        text: `UV ${dayWeather.uvIndex} ${uvIndicator}`,
-      })
-    }
+    // if (dayWeather.uvIndex !== undefined) {
+    //   const uvIndicator =
+    //     dayWeather.uvIndex >= 8
+    //       ? ''
+    //       : dayWeather.uvIndex >= 6
+    //         ? ''
+    //         : dayWeather.uvIndex >= 3
+    //           ? ''
+    //           : ''
+    //   elements.push({
+    //     type: 'mrkdwn',
+    //     text: `UV ${dayWeather.uvIndex} ${uvIndicator}`,
+    //   })
+    // }
 
     if (dayWeather.humidity) {
       elements.push({

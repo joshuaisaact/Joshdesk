@@ -1,7 +1,9 @@
 import type { ModalView } from '@slack/types'
 import type { WorkspaceSettings } from '../services/storage'
 
-export const createSettingsModal = (settings: WorkspaceSettings): ModalView => ({
+export const createSettingsModal = (
+  settings: WorkspaceSettings,
+): ModalView => ({
   type: 'modal',
   callback_id: 'settings_submit',
   title: {
@@ -19,16 +21,16 @@ export const createSettingsModal = (settings: WorkspaceSettings): ModalView => (
       type: 'header',
       text: {
         type: 'plain_text',
-        text: 'Office Location',
-        emoji: true
-      }
+        text: 'Company Details',
+        emoji: true,
+      },
     },
     {
       type: 'input',
       block_id: 'office_name',
       label: {
         type: 'plain_text',
-        text: 'Office Name',
+        text: 'Company Name',
         emoji: true,
       },
       element: {
@@ -56,7 +58,7 @@ export const createSettingsModal = (settings: WorkspaceSettings): ModalView => (
         initial_option: {
           text: {
             type: 'plain_text',
-            text: settings.officeAddress
+            text: settings.officeAddress,
           },
           value: 'initial',
         },
@@ -71,8 +73,8 @@ export const createSettingsModal = (settings: WorkspaceSettings): ModalView => (
       text: {
         type: 'plain_text',
         text: 'Status Categories',
-        emoji: true
-      }
+        emoji: true,
+      },
     },
     ...settings.categories.map((category) => ({
       type: 'section',
@@ -88,29 +90,29 @@ export const createSettingsModal = (settings: WorkspaceSettings): ModalView => (
           text: {
             type: 'plain_text',
             text: category.isEnabled ? 'Enabled' : 'Hidden',
-            emoji: true
+            emoji: true,
           },
-          value: category.isEnabled ? 'enabled' : 'disabled'
+          value: category.isEnabled ? 'enabled' : 'disabled',
         },
         options: [
           {
             text: {
               type: 'plain_text',
               text: 'Enabled',
-              emoji: true
+              emoji: true,
             },
-            value: 'enabled'
+            value: 'enabled',
           },
           {
             text: {
               type: 'plain_text',
               text: 'Hidden',
-              emoji: true
+              emoji: true,
             },
-            value: 'disabled'
-          }
-        ]
-      }
-    }))
+            value: 'disabled',
+          },
+        ],
+      },
+    })),
   ],
 })
