@@ -2,8 +2,9 @@ import type { App } from '@slack/bolt'
 import type { MonthSchedule } from '../types/schedule'
 import { format, addDays, startOfWeek } from 'date-fns'
 import { getWorkspaceSettings } from './storage'
-import { installationStore } from './installation'
+
 import { logger } from '../utils/logger'
+import { fetchInstallation } from './installation'
 
 function renderUserList(
   users: Array<{ userId: string }>,
@@ -39,7 +40,7 @@ export async function sendWeeklyReminders(
   })
 
   try {
-    const installation = await installationStore.fetchInstallation({
+    const installation = await fetchInstallation({
       teamId,
       isEnterpriseInstall: false,
       enterpriseId: undefined,

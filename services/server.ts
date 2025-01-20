@@ -1,29 +1,26 @@
 import { serve } from 'bun'
 import { App } from '@slack/bolt'
+import { logger } from '../utils/logger'
 
 export const startServer = async (slackApp: App) => {
-  // Start Slack app
+  // Start the Bolt app first
   await slackApp.start(process.env.PORT || 3000)
 
-  // Read the HTML template once at startup
+  // Read the HTML templates
   const indexTemplate = await Bun.file('./public/index.html').text()
   const privacyTemplate = await Bun.file('./public/privacy.html').text()
 
-  // Start landing page server
+  // Then start your static server on a different port
   serve({
-    port: process.env.WEB_PORT || 3001,
+    port: process.env.STATIC_PORT || 3001,
     async fetch(req) {
       const url = new URL(req.url)
+      logger.info(`Incoming request to: ${url.pathname}`)
 
-      // Route based on pathname
+      // Handle your static routes
       switch (url.pathname) {
         case '/':
-          // Replace template variables for index
-          const html = indexTemplate.replace(
-            '{{SLACK_INSTALL_URL}}',
-            process.env.SLACK_INSTALL_URL || '#',
-          )
-          return new Response(html, {
+          return new Response(indexTemplate, {
             headers: {
               'Content-Type': 'text/html',
               'Cache-Control': 'public, max-age=3600',
@@ -48,7 +45,6 @@ export const startServer = async (slackApp: App) => {
               return new Response('Not Found', { status: 404 })
             }
 
-            // Set appropriate content type based on file extension
             const contentType = url.pathname.endsWith('.gif')
               ? 'image/gif'
               : url.pathname.endsWith('.webp')

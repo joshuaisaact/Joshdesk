@@ -1,6 +1,6 @@
 import type { WebClient } from '@slack/web-api'
 import { tryCatch } from './error-handlers'
-import { installationStore } from '../services/installation.ts'
+import { fetchInstallation } from '../services/installation'
 
 export const checkIfAdmin = async (
   client: WebClient,
@@ -9,7 +9,7 @@ export const checkIfAdmin = async (
 ) =>
   (await tryCatch(async () => {
     // Get installation for this team
-    const installation = await installationStore.fetchInstallation({
+    const installation = await fetchInstallation({
       teamId,
       isEnterpriseInstall: false,
       enterpriseId: undefined,

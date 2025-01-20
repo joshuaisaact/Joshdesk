@@ -8,7 +8,11 @@ import {
 import { tryCatch } from './utils/error-handlers'
 import { setupEventHandlers } from './handlers'
 import { startServer } from './services/server'
-import { installationStore } from './services/installation'
+import {
+  storeInstallation,
+  fetchInstallation,
+  deleteInstallation,
+} from './services/installation'
 import {
   deleteWorkspaceData,
   getAllWorkspaceIds,
@@ -28,14 +32,17 @@ const initApp = async () => {
     clientSecret: Bun.env.SLACK_CLIENT_SECRET,
     stateSecret: Bun.env.SLACK_STATE_SECRET,
     scopes: ['chat:write', 'commands', 'users:read', 'users.profile:write'],
-    installationStore,
+    installationStore: {
+      storeInstallation,
+      fetchInstallation,
+      deleteInstallation,
+    },
     socketMode: true,
     appToken: Bun.env.SLACK_APP_TOKEN,
-    redirectUri:
-      'https://9884-149-22-196-72.ngrok-free.app/slack/oauth/callback',
+    redirectUri: 'https://joshdesk.live/slack/oauth/callback',
     installerOptions: {
       redirectUriPath: '/slack/oauth/callback',
-      directInstall: true,
+      // directInstall: true,
       stateVerification: false, // Disable state verification
     },
   })
@@ -75,7 +82,7 @@ const initApp = async () => {
         return
       }
       await deleteWorkspaceData(teamId)
-      await installationStore.deleteInstallation({
+      await deleteInstallation({
         teamId,
         enterpriseId: undefined,
         isEnterpriseInstall: false,

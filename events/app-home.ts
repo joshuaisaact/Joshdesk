@@ -3,7 +3,8 @@ import type { HomeView } from '../types/slack'
 import { generateBlocks } from '../blocks/home'
 import type { MonthSchedule } from '../types/schedule'
 import { checkIfAdmin } from '../utils/slack.ts'
-import { installationStore } from '../services/installation'
+import { logger } from '../utils/logger.ts'
+import { fetchInstallation } from '../services/installation.ts'
 
 export const appHomeOpenedHandler = async (
   {
@@ -15,11 +16,13 @@ export const appHomeOpenedHandler = async (
   currentWeek: number = 0,
 ) => {
   try {
-    const installation = await installationStore.fetchInstallation({
+    const installation = await fetchInstallation({
       teamId: context.teamId!,
       isEnterpriseInstall: false,
       enterpriseId: undefined,
     })
+
+    logger.info('Fetched installation:', installation)
 
     const token = installation.bot?.token
     if (!token) {
@@ -44,6 +47,9 @@ export const appHomeOpenedHandler = async (
       } as HomeView,
     })
   } catch (error) {
-    console.error(error)
+    logger.error(
+      `Error handling app_home_opened for team: ${context.teamId}, user: ${event.user}`,
+      error,
+    )
   }
 }

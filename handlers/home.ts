@@ -5,7 +5,6 @@ import { appHomeOpenedHandler } from '../events/app-home.ts'
 import { generateBlocks } from '../blocks/home.ts'
 import { getWorkspaceSchedule } from '../utils/workspace.ts'
 import { checkIfAdmin } from '../utils/slack.ts'
-import { installationStore } from '../services/installation.ts'
 
 export const setupHomeHandlers = (
   app: App,

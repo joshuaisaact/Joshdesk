@@ -3,8 +3,8 @@ import { logger } from '../utils/logger'
 import { getWorkspaceSettings } from './storage'
 import { endOfDay, getUnixTime, isSameDay } from 'date-fns'
 import { format } from 'date-fns/format'
-import { installationStore } from './installation'
 import type { WebClient } from '@slack/web-api'
+import { fetchInstallation } from './installation'
 
 export async function updateUserSlackStatus(
   client: WebClient,
@@ -30,7 +30,7 @@ export async function updateUserSlackStatus(
     const cleanUserId = userId.replace('<@', '').replace('>', '')
     const expirationTimestamp = getUnixTime(endOfDay(selectedDate))
 
-    const installation = await installationStore.fetchInstallation({
+    const installation = await fetchInstallation({
       teamId: teamId,
       enterpriseId: undefined,
       isEnterpriseInstall: false,
