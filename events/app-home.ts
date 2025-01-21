@@ -43,6 +43,7 @@ export const appHomeOpenedHandler = async (
           event.user,
           context.teamId!,
           isAdmin,
+          client,
         ),
       } as HomeView,
     })

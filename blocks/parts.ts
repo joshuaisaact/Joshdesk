@@ -16,6 +16,8 @@ import {
 } from '../utils/weather'
 import { getDailyQuote } from '../utils/quotes'
 import { type WorkspaceSettings } from '../services/storage'
+import { WebClient } from '@slack/web-api'
+import { SlackService } from '../services/slackClient'
 
 const DIVIDER_BLOCK: KnownBlock = { type: 'divider' }
 const TINY_SPACER: KnownBlock = {
@@ -37,29 +39,42 @@ function normalizeUserId(userId: string): string {
   return `<@${userId}>`
 }
 
-function renderUserList(
+async function renderUserList(
   users: Array<{ userId: string }>,
   emptyMessage: string,
-): string {
-  return users.length
-    ? users.map((a) => normalizeUserId(a.userId)).join(' ')
-    : `_${emptyMessage}_`
+): Promise<string> {
+  const validUsers = []
+  const { client } = SlackService.getInstance()
+
+  for (const { userId } of users) {
+    try {
+      const userInfo = await client.users.info({ user: userId })
+      if (userInfo.ok && !userInfo.user?.deleted) {
+        validUsers.push(normalizeUserId(userId))
+      }
+    } catch (error) {
+      console.error(`Failed to fetch info for user ${userId}:`, error)
+    }
+  }
+
+  return validUsers.length ? validUsers.join(' ') : `_${emptyMessage}_`
 }
 
-function createCategorySection({
+async function createCategorySection({
   emoji,
   displayName,
   users,
   emptyMessage,
-  isOffice = false, // Add this parameter
-}: CategoryGroup): KnownBlock {
+  isOffice = false,
+}: CategoryGroup): Promise<KnownBlock> {
   const countSuffix = isOffice ? ` _(${users.length} going)_` : ''
+  const userList = await renderUserList(users, emptyMessage)
 
   return {
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `${emoji} ${displayName}${countSuffix}\n\n${renderUserList(users, emptyMessage)}`,
+      text: `${emoji} ${displayName}${countSuffix}\n\n${userList}`,
     },
   }
 }
@@ -249,7 +264,7 @@ const getWeatherElements = (
   return elements
 }
 
-export function createDayBlock(
+export async function createDayBlock(
   day: string,
   schedule: DaySchedule,
   isHomeView: boolean,
@@ -257,7 +272,7 @@ export function createDayBlock(
   userId: string,
   weather: WeatherData | null,
   settings: WorkspaceSettings,
-): (KnownBlock | Block)[] | null {
+): Promise<(KnownBlock | Block)[] | null> {
   // Setup and validation
   const scheduleDate = new Date(
     schedule.year,
@@ -314,17 +329,15 @@ export function createDayBlock(
   ]
 
   // Add categories with proper spacing
-  enabledCategories.forEach((category, index) => {
-    const categoryGroup: CategoryGroup = {
-      emoji: category.emoji,
-      displayName: category.displayName,
-      users: usersByCategory[category.id] || [],
-      emptyMessage: getEmptyMessage(category.id),
-      isOffice: category.id === 'office', // Add this
-    }
+  for (let index = 0; index < enabledCategories.length; index++) {
+    const category = enabledCategories[index]
 
     if (index === enabledCategories.length - 1 && isHomeView) {
-      // For the last category, create a section with both category and status selector
+      const userList = await renderUserList(
+        usersByCategory[category.id] || [],
+        getEmptyMessage(category.id),
+      )
+
       const countSuffix =
         category.id === 'office'
           ? ` _(${usersByCategory[category.id]?.length || 0} going)_`
@@ -334,10 +347,7 @@ export function createDayBlock(
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${category.emoji} ${category.displayName}${countSuffix}\n\n${renderUserList(
-            usersByCategory[category.id] || [],
-            getEmptyMessage(category.id),
-          )}`,
+          text: `${category.emoji} ${category.displayName}${countSuffix}\n\n${userList}`,
         },
         accessory: {
           type: 'static_select',
@@ -346,7 +356,7 @@ export function createDayBlock(
             text:
               userStatus && categoryMap.has(userStatus)
                 ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
-                : `${format(scheduleDate, 'EEEE')} - Set status`, // Updated placeholder text
+                : `${format(scheduleDate, 'EEEE')} - Set status`,
             emoji: true,
           },
           options: enabledCategories.map((c) => ({
@@ -372,13 +382,23 @@ export function createDayBlock(
         },
       })
     } else {
-      // For all other categories, render normally
-      blocks.push(createCategorySection(categoryGroup))
+      // For all other categories
+      const categoryGroup: CategoryGroup = {
+        emoji: category.emoji,
+        displayName: category.displayName,
+        users: usersByCategory[category.id] || [],
+        emptyMessage: getEmptyMessage(category.id),
+        isOffice: category.id === 'office',
+      }
+
+      const categorySection = await createCategorySection(categoryGroup)
+      blocks.push(categorySection)
+
       if (index < enabledCategories.length - 1) {
         blocks.push(TINY_SPACER)
       }
     }
-  })
+  }
 
   blocks.push(TINY_SPACER, DIVIDER_BLOCK, TINY_SPACER)
 

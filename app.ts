@@ -21,6 +21,7 @@ import {
 } from './services/storage'
 import type { MonthSchedule } from './types/schedule'
 import { createMonthSchedule } from './services/schedule.ts'
+import { SlackService } from './services/slackClient.ts'
 
 // State
 const state = new Map<string, MonthSchedule>()
@@ -46,6 +47,8 @@ const initApp = async () => {
       stateVerification: false, // Disable state verification
     },
   })
+
+  SlackService.initialize(app)
 
   // Add error handler
   app.error(async (error) => {

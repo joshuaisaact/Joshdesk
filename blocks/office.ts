@@ -3,26 +3,12 @@ import type { MonthSchedule, DaySchedule } from '../types/schedule'
 import { format, startOfDay, isBefore } from 'date-fns'
 import { getWorkspaceSettings } from '../services/storage'
 import type { WorkspaceSettings } from '../services/storage'
-
-function normalizeUserId(userId: string): string {
-  if (!userId) return ''
-  if (userId.startsWith('<@') && userId.endsWith('>')) return userId
-  return `<@${userId}>`
-}
+import { SlackService } from '../services/slackClient'
 
 function shouldShowDay(scheduleDate: Date): boolean {
   const today = startOfDay(new Date())
   const dayDate = startOfDay(scheduleDate)
   return !isBefore(dayDate, today)
-}
-
-function renderUserList(
-  users: Array<{ userId: string }>,
-  emptyMessage: string,
-): string {
-  return users.length
-    ? users.map((a) => normalizeUserId(a.userId)).join(' ')
-    : `_${emptyMessage}_`
 }
 
 function createSimpleDayBlock(
@@ -60,14 +46,14 @@ function createSimpleDayBlock(
   ]
 
   // Add each category that has users
-  enabledCategories.forEach((category) => {
+  enabledCategories.forEach(async (category) => {
     const users = usersByCategory[category.id] || []
     if (users.length > 0) {
       blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${category.emoji} ${renderUserList(users, '')}`,
+          text: `${category.emoji} ${await renderUserList(users, '')}`,
         },
       })
     }

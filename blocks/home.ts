@@ -8,6 +8,7 @@ import {
 } from './parts'
 import { getWeather } from '../utils/weather'
 import { getWorkspaceSettings } from '../services/storage'
+import { WebClient } from '@slack/web-api'
 
 export const generateBlocks = async (
   monthSchedule: MonthSchedule,
@@ -16,6 +17,7 @@ export const generateBlocks = async (
   userId: string,
   teamId: string,
   isAdmin: boolean = false,
+  client: WebClient,
 ): Promise<(KnownBlock | Block)[]> => {
   const settings = getWorkspaceSettings(teamId)
 
