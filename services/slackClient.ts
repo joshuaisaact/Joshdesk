@@ -1,5 +1,6 @@
 import { App } from '@slack/bolt'
 import { fetchInstallation } from './installation'
+import { WebClient } from '@slack/web-api'
 
 export class SlackService {
   private static instance: SlackService
@@ -11,6 +12,7 @@ export class SlackService {
 
   public static initialize(app: App): void {
     if (!SlackService.instance) {
+      console.log('Creating new SlackService instance')
       SlackService.instance = new SlackService(app)
     }
   }

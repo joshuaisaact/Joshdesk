@@ -48,6 +48,7 @@ const initApp = async () => {
     },
   })
 
+  logger.info('Initializing SlackService...')
   SlackService.initialize(app)
 
   // Add error handler

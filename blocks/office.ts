@@ -4,6 +4,7 @@ import { format, startOfDay, isBefore } from 'date-fns'
 import { getWorkspaceSettings } from '../services/storage'
 import type { WorkspaceSettings } from '../services/storage'
 import { SlackService } from '../services/slackClient'
+import { renderUserList } from '../utils/userlist'
 
 function shouldShowDay(scheduleDate: Date): boolean {
   const today = startOfDay(new Date())

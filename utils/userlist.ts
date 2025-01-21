@@ -1,25 +1,16 @@
 import { SlackService } from '../services/slackClient'
 
-export async function renderUserList(
+export function renderUserList(
   users: Array<{ userId: string }>,
   emptyMessage: string,
-  teamId: string, // Add teamId parameter
-): Promise<string> {
-  const validUsers = []
-  const slackService = SlackService.getInstance()
+): string {
+  console.log('renderUserList called with:', {
+    users,
+    emptyMessage,
+  })
 
-  for (const { userId } of users) {
-    try {
-      const userInfo = await slackService.getUserInfo(userId, teamId)
-      if (userInfo?.ok && !userInfo.user?.deleted) {
-        validUsers.push(normalizeUserId(userId))
-      }
-    } catch (error) {
-      console.error(`Failed to fetch info for user ${userId}:`, error)
-    }
-  }
-
-  return validUsers.length ? validUsers.join(' ') : `_${emptyMessage}_`
+  const userMentions = users.map(({ userId }) => `<@${userId}>`).join(' ')
+  return userMentions || `_${emptyMessage}_`
 }
 
 export function normalizeUserId(userId: string): string {

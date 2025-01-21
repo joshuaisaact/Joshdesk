@@ -18,6 +18,7 @@ import { getDailyQuote } from '../utils/quotes'
 import { type WorkspaceSettings } from '../services/storage'
 import { WebClient } from '@slack/web-api'
 import { SlackService } from '../services/slackClient'
+import { renderUserList } from '../utils/userlist'
 
 const DIVIDER_BLOCK: KnownBlock = { type: 'divider' }
 const TINY_SPACER: KnownBlock = {
@@ -39,27 +40,6 @@ function normalizeUserId(userId: string): string {
   return `<@${userId}>`
 }
 
-async function renderUserList(
-  users: Array<{ userId: string }>,
-  emptyMessage: string,
-): Promise<string> {
-  const validUsers = []
-  const { client } = SlackService.getInstance()
-
-  for (const { userId } of users) {
-    try {
-      const userInfo = await client.users.info({ user: userId })
-      if (userInfo.ok && !userInfo.user?.deleted) {
-        validUsers.push(normalizeUserId(userId))
-      }
-    } catch (error) {
-      console.error(`Failed to fetch info for user ${userId}:`, error)
-    }
-  }
-
-  return validUsers.length ? validUsers.join(' ') : `_${emptyMessage}_`
-}
-
 async function createCategorySection({
   emoji,
   displayName,
@@ -67,8 +47,23 @@ async function createCategorySection({
   emptyMessage,
   isOffice = false,
 }: CategoryGroup): Promise<KnownBlock> {
+  console.log('createCategorySection called with:', {
+    emoji,
+    displayName,
+    users,
+    emptyMessage,
+    isOffice,
+  })
+
   const countSuffix = isOffice ? ` _(${users.length} going)_` : ''
   const userList = await renderUserList(users, emptyMessage)
+
+  console.log('Category section created:', {
+    emoji,
+    displayName,
+    countSuffix,
+    userList,
+  })
 
   return {
     type: 'section',
