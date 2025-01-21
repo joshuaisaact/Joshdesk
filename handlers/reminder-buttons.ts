@@ -64,9 +64,6 @@ export const handleReminderAction = async (
       return
     }
 
-    // Parse action
-    // Parse action
-    // Parse action
     const [, categoryId, day, week] = action.value.split(':')
 
     if (!categoryId || !day || week === undefined) {
@@ -92,8 +89,6 @@ export const handleReminderAction = async (
       parseInt(week, 10),
       body.user.id,
       categoryId,
-      client as any,
-      context.teamId,
     )
 
     // Update state and save

@@ -26,6 +26,8 @@ const importData = async (jsonPath: string, isDryRun: boolean = true) => {
       return
     }
 
+    console.log('Data to be saved:', JSON.stringify(scheduleData, null, 2))
+
     // Save with the correct team ID
     await saveSchedule(TEAM_ID, scheduleData)
 

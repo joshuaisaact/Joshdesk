@@ -17,7 +17,6 @@ export const generateBlocks = async (
   userId: string,
   teamId: string,
   isAdmin: boolean = false,
-  client: WebClient,
 ): Promise<(KnownBlock | Block)[]> => {
   const settings = getWorkspaceSettings(teamId)
 

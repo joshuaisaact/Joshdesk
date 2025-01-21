@@ -3,7 +3,6 @@ import type { MonthSchedule, DaySchedule } from '../types/schedule'
 import { format, startOfDay, isBefore } from 'date-fns'
 import { getWorkspaceSettings } from '../services/storage'
 import type { WorkspaceSettings } from '../services/storage'
-import { SlackService } from '../services/slackClient'
 import { renderUserList } from '../utils/userlist'
 
 function shouldShowDay(scheduleDate: Date): boolean {
@@ -12,11 +11,12 @@ function shouldShowDay(scheduleDate: Date): boolean {
   return !isBefore(dayDate, today)
 }
 
-function createSimpleDayBlock(
+async function createSimpleDayBlock(
   day: string,
   schedule: DaySchedule,
   settings: WorkspaceSettings,
-): (KnownBlock | Block)[] | null {
+): Promise<(KnownBlock | Block)[] | null> {
+  // Note: made function async
   const scheduleDate = new Date(
     schedule.year,
     schedule.month - 1,
@@ -46,19 +46,20 @@ function createSimpleDayBlock(
     },
   ]
 
-  // Add each category that has users
-  enabledCategories.forEach(async (category) => {
+  // Replace forEach with for...of to handle async properly
+  for (const category of enabledCategories) {
     const users = usersByCategory[category.id] || []
     if (users.length > 0) {
+      const userList = await renderUserList(users, '')
       blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${category.emoji} ${await renderUserList(users, '')}`,
+          text: `${category.emoji} ${userList}`,
         },
       })
     }
-  })
+  }
 
   // If no one is in any category, show "No one scheduled"
   const hasAnyUsers = enabledCategories.some(
@@ -116,8 +117,9 @@ export const generateOfficeBlocks = async (
 
   let hasVisibleDays = false
 
+  // Use for...of instead of Object.entries to handle async properly
   for (const [day, schedule] of Object.entries(weekSchedule)) {
-    const dayBlocks = createSimpleDayBlock(day, schedule, settings)
+    const dayBlocks = await createSimpleDayBlock(day, schedule, settings)
     if (dayBlocks) {
       hasVisibleDays = true
       blocks.push(...dayBlocks)

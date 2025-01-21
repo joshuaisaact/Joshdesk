@@ -38,8 +38,6 @@ export const setupScheduleHandlers = (
             parseInt(week),
             body.user.id,
             status as AttendanceStatus,
-            client,
-            context.teamId!,
           ),
         'Error updating attendance',
       )

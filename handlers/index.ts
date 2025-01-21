@@ -57,17 +57,11 @@ export const setupEventHandlers = (
   })
 
   app.command('/office', async ({ command, context, ...rest }) => {
-    const schedule = await tryCatch(
-      async () => getWorkspaceSchedule(context.teamId, state),
-      'Error getting workspace schedule',
-    )
-    if (!schedule) return
-
     await tryCatch(
       async () =>
         officeCommandHandler(
           { command, context, ...rest },
-          schedule,
+          state,
           context.teamId!,
         ),
       'Error handling office command',

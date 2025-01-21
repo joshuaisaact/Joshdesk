@@ -34,12 +34,6 @@ interface CategoryGroup {
   isOffice: boolean
 }
 
-function normalizeUserId(userId: string): string {
-  if (!userId) return ''
-  if (userId.startsWith('<@') && userId.endsWith('>')) return userId
-  return `<@${userId}>`
-}
-
 async function createCategorySection({
   emoji,
   displayName,
@@ -47,14 +41,6 @@ async function createCategorySection({
   emptyMessage,
   isOffice = false,
 }: CategoryGroup): Promise<KnownBlock> {
-  console.log('createCategorySection called with:', {
-    emoji,
-    displayName,
-    users,
-    emptyMessage,
-    isOffice,
-  })
-
   const countSuffix = isOffice ? ` _(${users.length} going)_` : ''
   const userList = await renderUserList(users, emptyMessage)
 
@@ -281,7 +267,7 @@ export async function createDayBlock(
   const dayWeather = getFormattedWeather(weather, scheduleDate, isCurrentDay)
 
   const userStatus = schedule.attendees.find(
-    (a) => normalizeUserId(a.userId) === normalizeUserId(userId),
+    (a) => a.userId === `<@${userId}>`,
   )?.status
 
   const enabledCategories = settings.categories.filter(
@@ -346,14 +332,6 @@ export async function createDayBlock(
         },
         accessory: {
           type: 'static_select',
-          placeholder: {
-            type: 'plain_text',
-            text:
-              userStatus && categoryMap.has(userStatus)
-                ? `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`
-                : `${format(scheduleDate, 'EEEE')} - Set status`,
-            emoji: true,
-          },
           options: enabledCategories.map((c) => ({
             text: {
               type: 'plain_text',
@@ -362,17 +340,24 @@ export async function createDayBlock(
             },
             value: `status:${c.id}:${day}:${currentWeek}`,
           })),
-          initial_option:
-            userStatus && categoryMap.has(userStatus)
-              ? {
+          ...(userStatus && categoryMap.has(userStatus)
+            ? {
+                initial_option: {
                   text: {
                     type: 'plain_text',
                     text: `${categoryMap.get(userStatus)?.emoji} ${categoryMap.get(userStatus)?.displayName}`,
                     emoji: true,
                   },
                   value: `status:${userStatus}:${day}:${currentWeek}`,
-                }
-              : undefined,
+                },
+              }
+            : {
+                placeholder: {
+                  type: 'plain_text',
+                  text: `${format(scheduleDate, 'EEEE')} - Set status`,
+                  emoji: true,
+                },
+              }),
           action_id: `set_status_${day.toLowerCase()}_${currentWeek}`,
         },
       })

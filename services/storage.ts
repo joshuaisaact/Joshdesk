@@ -133,7 +133,13 @@ export const loadSchedule = (teamId: string) =>
       return newSchedule
     }
 
-    return JSON.parse(row.schedule_data)
+    const parsedSchedule = JSON.parse(row.schedule_data)
+    logger.info({
+      msg: 'Loaded schedule from database',
+      teamId,
+      scheduleData: parsedSchedule,
+    })
+    return parsedSchedule
   }, 'Error loading schedule from SQLite')
 
 export const saveSchedule = (teamId: string, schedule: MonthSchedule) =>
