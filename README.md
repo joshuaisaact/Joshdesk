@@ -2,6 +2,8 @@
 
 # JoshDesk
 
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/1fe1a0f8-1d5a-46d9-91f3-ce45b73e3397" />
+
 A Slack app for booking desks.
 
 ## Features
